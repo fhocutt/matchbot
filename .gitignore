@@ -1,3 +1,23 @@
+# configuration files
+grantsbot_settings.*
+matchbot_settings.*
+hostbot_settings.*
+# compiled modules
+*.pyc
+# subdirectories
+data/
+logs/
+modules/
+old_scripts/
+test*
+# crud
+*.DS_Store
+*.InterarchyMirrorCacheData
+*Icon*
+*.log*
+
+#######
+# Default Python .gitignore
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
