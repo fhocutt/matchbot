@@ -10,7 +10,7 @@
 import json
 import time
 import mwclient
-import flow_mw_settings as mwcreds
+# import flow_mw_settings as mwcreds
 
 def flowenabled(title, site):
     """Given a string with the page title, return True if Flow is enabled"""

@@ -43,14 +43,18 @@ import mblog
 
 
 # TODO: Consider whether these should be kept here or in a config file
-mcats = ['Category:Co-op/Mentors/Communication',
-               'Category:Co-op/Mentors/Writing',
-               'Category:Co-op/Mentors/Other']
-CATCHALL = 'Category:Co-op/Mentors/General'
-NOMENTEES = 'Category:Co-op/Inactive mentors'
-lcats = ['Category:Co-op/Requests/Communication',
+mcats = ['Category:Co-op mentors with best practice skills',
+'Category:Co-op mentors with communication skills',
+'Category:Co-op mentors with writing skills',
+'Category:Co-op mentors with general editing skills',
+'Category:Co-op mentors with technical editing skills']
+CATCHALL = 'Category:Co-op mentors with general editing skills'
+NOMENTEES = 'Category:Co-op mentor not taking new requests'
+lcats = ['Category:Co-op/Requests/Best practices',
+	 'Category:Co-op/Requests/Communication',
                 'Category:Co-op/Requests/Writing',
-                'Category:Co-op/Requests/Other']
+                'Category:Co-op/Requests/Other',
+		'Category:Co-op/Requests/Technical editing']
 category_dict = {k:v for (k,v) in zip(lcats, mcats)}
 
 
@@ -88,11 +92,11 @@ def buildgreeting(learner, mentor, skill, matchmade):
                    'in the Co-op. [[User:%(m)s|%(m)s]] has listed "%(s)s" in '\
                    'their mentorship profile. '\
                    'Leave them a message on their talk page and see if you '\
-                   'want to work together!' % {'l': learner, 'm': mentor,
+                   'want to work together! ~~~~' % {'l': learner, 'm': mentor,
                                                's': skill}
         topic = 'Welcome to the Co-op! Here is your match.'
     else:
-        greeting = 'Sorry, we don\'t have a match for you!'
+        greeting = 'Sorry, we don\'t have a match for you! ~~~~'
         topic = 'Welcome to the Co-op!'
     return (greeting, topic)
 
@@ -153,10 +157,10 @@ if __name__ == '__main__':
     except(mwclient.LoginError):
         mblog.logerror('LoginError: could not log in')
         logged_errors = True
-    except(Exception):
+#    except(Exception):
         mblog.logerror('Login failed') # FIXME more verbose error plz
         logged_errors = True
-        sys.exit()
+#        sys.exit()
 
     learners = []
     # get the new learners for all the categories
