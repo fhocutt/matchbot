@@ -10,17 +10,6 @@
 #
 # All mentor and learner profile pages are subpages of Wikipedia:Co-op.
 #
-# Test category tags: 
-#   Co-op (maybe not necessary because implied by subpage status?)
-#   Co-op mentor
-#   Co-op Learner
-#   Teaches research
-#   Teaches editing
-#   Teaches template writing
-#   Wants to do research
-#   Wants to edit
-#   Wants to write templates
-#
 # For each page tagged "Co-op learner", MatchBot v0.1.0 leaves a message on
 # the corresponding talk page with the name of a possible mentor (one for
 # each learning interest category on the page).
