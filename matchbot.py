@@ -47,12 +47,6 @@ lcats = ['Category:Co-op/Requests/Best practices',
 category_dict = {k:v for (k,v) in zip(lcats, mcats)}
 
 
-# constants for run logs:
-run_id = 0 # or sys.argv[1], depending on cron setup TODO
-edited_pages = False
-wrote_db = False
-logged_errors = False
-
 def parse_timestamp(t):
     if t == '0000-00-00T00:00:00Z':
         return None
@@ -129,11 +123,16 @@ def gettimeposted(result, isflow):
         return result['newtimestamp']
 
 if __name__ == '__main__':
+    run_time = datetime.datetime.utcnow()
+    edited_pages = False
+    wrote_db = False
+    logged_errors = False
+
     # get last time run and log time-started-running
     with open('time.log', 'r+b') as timelog:
         prevruntimestamp = timelog.read()
         timelog.seek(0)
-        timelog.write(datetime.datetime.strftime(datetime.datetime.now(),
+        timelog.write(datetime.datetime.strftime(run_time,
                                                  '%Y-%m-%dT%H:%M:%SZ'))
         timelog.truncate()
 
@@ -156,7 +155,7 @@ if __name__ == '__main__':
     # info to start: profile page id, profile name, time cat added, category
     for category in lcats:
         try:
-            newlearners = mbapi.newmembers(category, site, prevruntimestamp) #FIXME this should have time
+            newlearners = mbapi.newmembers(category, site, prevruntimestamp)
             for userdict in newlearners:
                 # add the results of that call to the list of users?
                 if userdict['profile'].startswith('Wikipedia:Co-op/'):
@@ -183,7 +182,7 @@ if __name__ == '__main__':
     for category in mcats:
 #        try:
         catmentors = mbapi.getallmembers(category, site)
-        mentors[category] = [x for x in catmentors if x not in nomore]
+        mentors[category] = [x for x in catmentors if x not in nomore and x['profile'].startswith('Wikipedia:Co-op/')]
 #        except(Exception):
  #           mblog.logerror('Could not fetch list of mentors for %s') % category
 
@@ -193,7 +192,6 @@ if __name__ == '__main__':
         # make the matches, logging info
         mcat = category_dict[learner['category']]
 #        try:
-        matchmade = False
         catments = mentors[mcat]
         mentor = match(catments, genmentors) # FIXME figure out category store
         if mentor == None:

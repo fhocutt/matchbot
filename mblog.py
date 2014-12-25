@@ -2,16 +2,16 @@ import logging
 import sqlalchemy as sqa
 
 # FIXME DRY
-def logrun(run_id, edited_pages, wrote_db, logged_errors):
+def logrun(run_time, edited_pages, wrote_db, logged_errors):
     logger = logging.getLogger(__name__)
     logger.setLevel(logging.INFO)
-    message = '\t%s\t%s\t%s\t%s' % (run_id, edited_pages, wrote_db,
-                                    logged_errors)
-    formatter = logging.Formatter('%(asctime)s %(message)s')
+    message = '{0}\tEdited: {1}\tDB write: {2}\tErrors: {3}'.format(run_time,
+                  edited_pages, wrote_db, logged_errors)
+#    formatter = logging.Formatter('%(asctime)s %(message)s')
     handler = logging.handlers.RotatingFileHandler('matchbot.log',
-                                                   maxBytes=100,
+                                                   maxBytes=10000,
                                                    backupCount=2)
-    handler.setFormatter(formatter)
+#    handler.setFormatter(formatter)
     logger.addHandler(handler)
     logger.info(message)
 
@@ -26,7 +26,7 @@ def logerror(message):
 
 # TODO
 def logmatch(luid, lprofile, category, muid, matchtime,
-                  cataddtime, matchmade, runid, revid=None, postid=None):
+                  cataddtime, matchmade, run_time, revid=None, postid=None):
     engine = sqa.create_engine('sqlite:///matches.db', echo=True)
     metadata = sqa.MetaData()
     matches = sqa.Table('matches', metadata, autoload=True,
@@ -37,7 +37,7 @@ def logmatch(luid, lprofile, category, muid, matchtime,
                        'category': category, 'muid': muid,
                        'matchtime':matchtime, 'cataddtime': cataddtime,
                        'revid': revid, 'postid': postid,
-                       'matchmade': matchmade, 'runid': runid})
+                       'matchmade': matchmade, 'run_time': run_time})
     return True
 
 def logdebug(message):
