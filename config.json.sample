@@ -1,0 +1,39 @@
+{
+"login":
+    {"site": "test.wikipedia.org",
+    "protocol":"https",
+    "username":"SAMPLE",
+    "password":"SAMPLE",
+    "useragent": "MatchBot, based on mwclient v0.6.5. Run by User:NAME, EMAIL"},
+
+"defaultmentor": "default",
+
+"pages":
+{"prefix":"Wikipedia:Co-op/",
+"talkprefix": "Wikipedia talk:Co-op/",
+"requestsprefix": "Wikipedia:Co-op/Requests/",
+"mcats": ["Category:Co-op mentors with best practice skills",
+"Category:Co-op mentors with communication skills",
+"Category:Co-op mentors with writing skills",
+"Category:Co-op mentors with general editing skills",
+"Category:Co-op mentors with technical editing skills"],
+"CATCHALL": "Category:Co-op mentors with general editing skills",
+"NOMENTEES": "Category:Co-op mentor not taking new requests",
+"lcats":["Category:Co-op/Requests/Best practices",
+     "Category:Co-op/Requests/Communication",
+                "Category:Co-op/Requests/Writing",
+                "Category:Co-op/Requests/Other",
+        "Category:Co-op/Requests/Technical editing"],
+"basecats": ["best practices", "communication", "writing", "general editing", "technical editing"]},
+
+"greetings":
+{"matchgreeting": "Hello, [[User:{0}|{0}s]]! Thank you for your interest in the Co-op. [[User:{1}|{1}]] has listed \"{2}\" in their mentorship profile. Leave them a message on their talk page and see if you want to work together! ~~~~",
+"matchtopic": "Welcome to the Co-op! We have a mentor for you.",
+"nomatchgreeting": "Sorry, we don't have a match for you! [[User:{}|{}]] will be in touch with you to find you one. ~~~~",
+"nomatchtopic": "Welcome to the Co-op!"},
+
+"dbinfo":
+{"host": "SAMPLE",
+"dbname": "SAMPLE",
+"defaultcnf": "SAMPLE"}
+}

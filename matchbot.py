@@ -20,6 +20,7 @@ import logging
 import logging.handlers
 import ConfigParser
 import sys
+import json
 
 import sqlalchemy
 import mwclient
@@ -32,19 +33,7 @@ import mblog
 
 
 # TODO: Consider whether these should be kept here or in a config file
-mcats = ['Category:Co-op mentors with best practice skills',
-'Category:Co-op mentors with communication skills',
-'Category:Co-op mentors with writing skills',
-'Category:Co-op mentors with general editing skills',
-'Category:Co-op mentors with technical editing skills']
-CATCHALL = 'Category:Co-op mentors with general editing skills'
-NOMENTEES = 'Category:Co-op mentor not taking new requests'
-lcats = ['Category:Co-op/Requests/Best practices',
-	 'Category:Co-op/Requests/Communication',
-                'Category:Co-op/Requests/Writing',
-                'Category:Co-op/Requests/Other',
-		'Category:Co-op/Requests/Technical editing']
-category_dict = {k:v for (k,v) in zip(lcats, mcats)}
+#category_dict = {k:v for (k,v) in zip(lcats, mcats)}
 
 
 def parse_timestamp(t):
@@ -127,6 +116,9 @@ if __name__ == '__main__':
     edited_pages = False
     wrote_db = False
     logged_errors = False
+
+    with open('config.json', 'rb') as configfile:
+        config = json.loads(configfile.read())
 
     # get last time run and log time-started-running
     with open('time.log', 'r+b') as timelog:
