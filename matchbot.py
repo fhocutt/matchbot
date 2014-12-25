@@ -213,28 +213,26 @@ if __name__ == '__main__':
         greeting, topic = buildgreeting(learner['learner'], mname,
                                         basecat, matchmade)
 
-#        try:
-        response = postinvite(talkpage, greeting, topic, flowenabled) # return? test? TODO
-        edited_pages = True
-        revid = getrevid(response, flowenabled)
-        postid = None
-        matchtime = parse_timestamp(gettimeposted(response, flowenabled))
+        try:
+            response = postinvite(talkpage, greeting, topic, flowenabled)
+            edited_pages = True
+        except Exception as e:
+            mblog.logerror('Could not post match on page') #TODO add specifics
+            logged_errors = True
+            continue
 
-#        except (Exception):
-#            mblog.logerror('Could not post match on page')
-#            logged_errors = True
-#            break
-
-#        try:
-        cataddtime = parse_timestamp(learner['cattime'])
-        mblog.logmatch(luid=luid, lprofile=learner['profile'], muid=muid,
+        try:
+            revid, postid = getrevid(response, flowenabled)
+            matchtime = parse_timestamp(gettimeposted(response, flowenabled))
+            cataddtime = parse_timestamp(learner['cattime'])
+            mblog.logmatch(luid=luid, lprofile=learner['profile'], muid=muid,
                            category=basecat, cataddtime=cataddtime,
                            matchtime=matchtime, matchmade=matchmade,
-                           revid=revid, postid=postid, runid=run_id)
-        wrote_db = True
-#        except (Exception):
-#            mblog.logerror('Could not write to DB')
-#            logged_errors = True
-#            break
+                           revid=revid, postid=postid, run_time=run_time)
+            wrote_db = True
+        except Exception as e:
+            mblog.logerror('Could not write to DB') #TODO add specifics
+            logged_errors = True
+            continue
 
-    mblog.logrun(run_id, edited_pages, wrote_db, logged_errors)
+    mblog.logrun(run_time, edited_pages, wrote_db, logged_errors)
