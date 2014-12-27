@@ -20,6 +20,7 @@ import logging
 import logging.handlers
 import ConfigParser
 import sys
+import os
 import json
 
 import sqlalchemy
@@ -116,12 +117,15 @@ if __name__ == '__main__':
     edited_pages = False
     wrote_db = False
     logged_errors = False
+    filepath = sys.argv[1]
 
-    with open('config.json', 'rb') as configfile:
-        config = json.loads(configfile.read())
+    configfile = os.path.join(filepath, 'config.json')
+    with open(configfile, 'rb') as configf:
+        config = json.loads(configf.read())
 
     # get last time run and log time-started-running
-    with open('time.log', 'r+b') as timelog:
+    timelogfile = os.path.join(filepath, 'time.log')
+    with open(timelogfile, 'r+b') as timelog:
         prevruntimestamp = timelog.read()
         timelog.seek(0)
         timelog.write(datetime.datetime.strftime(run_time,
@@ -129,11 +133,12 @@ if __name__ == '__main__':
         timelog.truncate()
 
     # Initializing site + logging in
+    login = config['login']
     try:
-        site = mwclient.Site(('https', 'test.wikipedia.org'),
-                              clients_useragent=matchbot_settings.useragent)
-        site.login(matchbot_settings.username, matchbot_settings.password)
-        mblog.logdebug('logged in as ' + matchbot_settings.username)
+        site = mwclient.Site((login['protocol'], login['site']),
+                              clients_useragent=login['useragent'])
+        site.login(login['username'], login['password'])
+        mblog.logdebug('logged in as ' + login['username'])
     except(mwclient.LoginError):
         mblog.logerror('LoginError: could not log in')
         logged_errors = True
@@ -142,6 +147,10 @@ if __name__ == '__main__':
         logged_errors = True
 #        sys.exit()
 
+    lcats = config['pages']['lcats']
+    mcats = config['pages']['mcats']
+    basecats = config['pages']['basecats']
+    prefix = config['pages']['prefix']
     learners = []
     # get the new learners for all the categories
     # info to start: profile page id, profile name, time cat added, category
@@ -150,7 +159,7 @@ if __name__ == '__main__':
             newlearners = mbapi.newmembers(category, site, prevruntimestamp)
             for userdict in newlearners:
                 # add the results of that call to the list of users?
-                if userdict['profile'].startswith('Wikipedia:Co-op/'):
+                if userdict['profile'].startswith(prefix):
                     learners.append(userdict)
                 else:
                     pass
@@ -168,13 +177,18 @@ if __name__ == '__main__':
 
     # find available mentors
     mentors = {}
+    NOMENTEES, CATCHALL = (config['pages']['NOMENTEES'],
+                           config['pages']['CATCHALL'])
+    mcat_dict = {k: v for (k, v) in zip(lcats, mcats)}
+    basecat_dict = {k: v for (k, v) in zip(lcats, basecats)}
+
     nomore = mbapi.getallmembers(NOMENTEES, site)
     allgenmentors = mbapi.getallmembers(CATCHALL, site)
-    genmentors = [x for x in allgenmentors if x not in nomore and x['profile'].startswith('Wikipedia:Co-op/')]
+    genmentors = [x for x in allgenmentors if x not in nomore and x['profile'].startswith(prefix)]
     for category in mcats:
 #        try:
         catmentors = mbapi.getallmembers(category, site)
-        mentors[category] = [x for x in catmentors if x not in nomore and x['profile'].startswith('Wikipedia:Co-op/')]
+        mentors[category] = [x for x in catmentors if x not in nomore and x['profile'].startswith(prefix)]
 #        except(Exception):
  #           mblog.logerror('Could not fetch list of mentors for %s') % category
 
@@ -182,7 +196,7 @@ if __name__ == '__main__':
 
     for learner in learners:
         # make the matches, logging info
-        mcat = category_dict[learner['category']]
+        mcat = mcat_dict[learner['category']]
 #        try:
         catments = mentors[mcat]
         mentor = match(catments, genmentors) # FIXME figure out category store
@@ -200,8 +214,8 @@ if __name__ == '__main__':
 
         talkpage = gettalkpage(learner['profile'])
         flowenabled = mbapi.flowenabled(talkpage, site)
-        basecat = learner['category'].lstrip('Category:Co-op/Requests/') #FIXME 
-            # (basecat: there's something weird with "Communication", test this)
+        basecat = basecat_dict[learner['category']]
+
         greeting, topic = buildgreeting(learner['learner'], mname,
                                         basecat, matchmade)
 
