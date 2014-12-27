@@ -26,12 +26,66 @@ import mwclient
 import mberrors
 import mbapi
 import mblog
+from load_config import filepath, config
+
+
+lcats = config['pages']['lcats']
+mcats = config['pages']['mcats']
+basecats = config['pages']['basecats']
+prefix = config['pages']['prefix']
+talkprefix = config['pages']['talkprefix']
+NOMENTEES = config['pages']['NOMENTEES']
+CATCHALL = config['pages']['CATCHALL']
+DEFAULTMENTOR = config['defaultmentor']
+mcat_dict = {k: v for (k, v) in zip(lcats, mcats)}
+basecat_dict = {k: v for (k, v) in zip(lcats, basecats)}
 
 
 def parse_timestamp(t):
     if t == '0000-00-00T00:00:00Z':
         return None
     return datetime.datetime.strptime(t, '%Y-%m-%dT%H:%M:%SZ')
+
+def getlearners(prevruntimestamp, site):
+    learners = []
+    # get the new learners for all the categories
+    # info to start: profile page id, profile name, time cat added, category
+    for category in lcats:
+        try:
+            newlearners = mbapi.newmembers(category, site, prevruntimestamp)
+            for userdict in newlearners:
+                # add the results of that call to the list of users?
+                if userdict['profile'].startswith(prefix):
+                    learners.append(userdict)
+                else:
+                    pass
+        except (Exception):
+            mblog.logerror('Could not fetch newly categorized profiles in {}'.format(category))
+            logged_errors = True
+    return learners
+
+def getlearnerinfo(learners, site):
+    # add information: username, userid, talk page id
+    for userdict in learners:
+        #figure out who it is
+        learner, luid = mbapi.userid(userdict['profile'], site)
+        userdict['learner'] = learner
+        userdict['luid'] = luid
+    return learners
+
+def getmentors(site):
+    # find available mentors
+    mentors = {}
+    nomore = mbapi.getallmembers(NOMENTEES, site)
+    allgenmentors = mbapi.getallmembers(CATCHALL, site)
+    genmentors = [x for x in allgenmentors if x not in nomore and x['profile'].startswith(prefix)]
+    for category in mcats:
+        try:
+            catmentors = mbapi.getallmembers(category, site)
+            mentors[category] = [x for x in catmentors if x not in nomore and x['profile'].startswith(prefix)]
+        except(Exception):
+            mblog.logerror('Could not fetch list of mentors for {}'.format(category))
+    return (mentors, genmentors)
 
 def match(catmentors, genmentors):
     """ Given two lists, returns a random choice from the first, or if there
@@ -72,16 +126,15 @@ def postinvite(pagetitle, greeting, topic, flowenabled):
         text.
     """
     if flowenabled:
-        # TODO: result format is in flux right now, may return metadata later
         result = mbapi.postflow(pagetitle, topic, greeting, site)
         return result
     else:
         profile = site.Pages[pagetitle]
 #        if flowenabled == None:
-#            mbapi.postflow(pagetitle, greeting, topic)
-#            return True
+#            result = mbapi.postflow(pagetitle, greeting, topic, site)
+#            return result
 #        else:
-        newtext = profile.text() + '\n\n' + greeting
+        newtext = '{0}\n\n=={1}==\n{2}'.format(profile.text(), topic, greeting)
         result = profile.save(newtext, summary=topic)
         return result
     return False
@@ -100,15 +153,11 @@ def gettimeposted(result, isflow):
         return result['newtimestamp']
 
 if __name__ == '__main__':
+    # To log
     run_time = datetime.datetime.utcnow()
     edited_pages = False
     wrote_db = False
     logged_errors = False
-    filepath = sys.argv[1]
-
-    configfile = os.path.join(filepath, 'config.json')
-    with open(configfile, 'rb') as configf:
-        config = json.loads(configf.read())
 
     # get last time run and log time-started-running
     timelogfile = os.path.join(filepath, 'time.log')
@@ -134,86 +183,48 @@ if __name__ == '__main__':
         logged_errors = True
 #        sys.exit()
 
-    lcats = config['pages']['lcats']
-    mcats = config['pages']['mcats']
-    basecats = config['pages']['basecats']
-    prefix = config['pages']['prefix']
-    learners = []
-    # get the new learners for all the categories
-    # info to start: profile page id, profile name, time cat added, category
-    for category in lcats:
-        try:
-            newlearners = mbapi.newmembers(category, site, prevruntimestamp)
-            for userdict in newlearners:
-                # add the results of that call to the list of users?
-                if userdict['profile'].startswith(prefix):
-                    learners.append(userdict)
-                else:
-                    pass
-        except (Exception):
-            mblog.logerror('Could not fetch newly categorized profiles in %s' % 
-                     category)
-            logged_errors = True
-
-    # add information: username, userid, talk page id
-    for userdict in learners:
-        #figure out who it is
-        learner, luid = mbapi.userid(userdict['profile'], site)
-        userdict['learner'] = learner
-        userdict['luid'] = luid
-
-    # find available mentors
-    mentors = {}
-    NOMENTEES, CATCHALL = (config['pages']['NOMENTEES'],
-                           config['pages']['CATCHALL'])
-    mcat_dict = {k: v for (k, v) in zip(lcats, mcats)}
-    basecat_dict = {k: v for (k, v) in zip(lcats, basecats)}
-
-    nomore = mbapi.getallmembers(NOMENTEES, site)
-    allgenmentors = mbapi.getallmembers(CATCHALL, site)
-    genmentors = [x for x in allgenmentors if x not in nomore and x['profile'].startswith(prefix)]
-    for category in mcats:
-#        try:
-        catmentors = mbapi.getallmembers(category, site)
-        mentors[category] = [x for x in catmentors if x not in nomore and x['profile'].startswith(prefix)]
-#        except(Exception):
- #           mblog.logerror('Could not fetch list of mentors for %s') % category
-
-# end up with a dict of lists of mentors, categories as keys.
+    learners = getlearnerinfo(getlearners(prevruntimestamp, site), site)
+    mentors, genmentors = getmentors(site)
 
     for learner in learners:
         # make the matches, logging info
-        mcat = mcat_dict[learner['category']]
-#        try:
-        catments = mentors[mcat]
-        mentor = match(catments, genmentors) # FIXME figure out category store
+        try:
+            mcat = mcat_dict[learner['category']]
+            mentor = match(mentors[mcat], genmentors)
+        except (Exception):
+            mblog.logerror('Matching/default match failed for {}'.format(learner))
+            logged_errors = True
+            continue
+
         if mentor == None:
-            raise mberrors.MatchError
-        mname, muid = mbapi.userid(mentor['profile'], site)
-        matchmade = True
-#        except (mberrors.MatchError):
-            # add '[[Category:No match found]]' to their page
-#            matchmade = False
-#        except (Exception):
-#            mblog.logerror('Matching/default match failed')
-#            logged_errors = True
-#            continue
+            mname, muid = mbapi.userid(DEFAULTMENTOR, site)
+        else:
+            mname, muid = mbapi.userid(mentor['profile'], site)
+            matchmade = True
+
 
         talkpage = gettalkpage(learner['profile'])
         flowenabled = mbapi.flowenabled(talkpage, site)
         basecat = basecat_dict[learner['category']]
-
         greeting, topic = buildgreeting(learner['learner'], mname,
                                         basecat, matchmade)
+        print talkpage
+        print basecat
+        print greeting
+        print topic
 
         try:
             response = postinvite(talkpage, greeting, topic, flowenabled)
+            print response
             edited_pages = True
         except Exception as e:
+            print e
             mblog.logerror('Could not post match on page') #TODO add specifics
             logged_errors = True
             continue
 
+
+        # there is a problem here: 'int object is not iterable'
         try:
             revid, postid = getrevid(response, flowenabled)
             matchtime = parse_timestamp(gettimeposted(response, flowenabled))
@@ -223,7 +234,8 @@ if __name__ == '__main__':
                            matchtime=matchtime, matchmade=matchmade,
                            revid=revid, postid=postid, run_time=run_time)
             wrote_db = True
-        except Exception as e:
+        except Exception as e: 
+            print e
             mblog.logerror('Could not write to DB') #TODO add specifics
             logged_errors = True
             continue
