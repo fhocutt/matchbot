@@ -16,9 +16,6 @@
 
 import random
 import datetime
-import logging
-import logging.handlers
-import ConfigParser
 import sys
 import os
 import json
@@ -26,15 +23,9 @@ import json
 import sqlalchemy
 import mwclient
 
-# Config file with login information and user-agent string
-import matchbot_settings
 import mberrors
 import mbapi
 import mblog
-
-
-# TODO: Consider whether these should be kept here or in a config file
-#category_dict = {k:v for (k,v) in zip(lcats, mcats)}
 
 
 def parse_timestamp(t):
@@ -60,22 +51,18 @@ def buildgreeting(learner, mentor, skill, matchmade):
     """Puts the string together that can be posted to a talk page or
        Flow board to introduce a potential mentor to a learner.
     """
+    greetings = config['greetings']
     if matchmade:
-        greeting = 'Hello, [[User:%(l)s|%(l)s]]! Thank you for your interest '\
-                   'in the Co-op. [[User:%(m)s|%(m)s]] has listed "%(s)s" in '\
-                   'their mentorship profile. '\
-                   'Leave them a message on their talk page and see if you '\
-                   'want to work together! ~~~~' % {'l': learner, 'm': mentor,
-                                               's': skill}
-        topic = 'Welcome to the Co-op! Here is your match.'
+        greeting = greetings['matchgreeting'].format(learner, mentor, skill)
+        topic = greetings['matchtopic']
     else:
-        greeting = 'Sorry, we don\'t have a match for you! ~~~~'
-        topic = 'Welcome to the Co-op!'
+        greeting = greetings['nomatchgreeting']
+        topic = greetings['nomatchtopic']
     return (greeting, topic)
 
 # FIXME handle namespace errors?
 def gettalkpage(profile):
-    talkpage = 'Wikipedia talk:' + profile.lstrip('Wikipedia:')
+    talkpage = talkprefix + profile.lstrip(prefix)
     return talkpage
 
 def postinvite(pagetitle, greeting, topic, flowenabled):
