@@ -46,6 +46,17 @@ def parse_timestamp(t):
         return None
     return datetime.datetime.strptime(t, '%Y-%m-%dT%H:%M:%SZ')
 
+def timelog(run_time):
+    # get last time run and log time-started-running
+    timelogfile = os.path.join(filepath, 'time.log')
+    with open(timelogfile, 'r+b') as timelog:
+        prevruntimestamp = timelog.read()
+        timelog.seek(0)
+        timelog.write(datetime.datetime.strftime(run_time,
+                                                 '%Y-%m-%dT%H:%M:%SZ'))
+        timelog.truncate()
+    return prevruntimestamp
+
 def getlearners(prevruntimestamp, site):
     learners = []
     # get the new learners for all the categories
@@ -141,14 +152,14 @@ def postinvite(pagetitle, greeting, topic, flowenabled):
 
 def getrevid(result, isflow):
     if isflow:
-        return result['flow']['new-topic']['committed']['topiclist']['post-revision-id']
+        return (None, result['flow']['new-topic']['committed']['topiclist']['post-revision-id'])
     else:
-        return result['newrevid']
+        return (result['newrevid'], None)
 
 # TODO Flow is changing
 def gettimeposted(result, isflow):
     if isflow:
-        return datetime.datetime.now() #FIXME
+        return datetime.datetime.now() #FIXME (documentme)
     else:
         return result['newtimestamp']
 
@@ -159,14 +170,7 @@ if __name__ == '__main__':
     wrote_db = False
     logged_errors = False
 
-    # get last time run and log time-started-running
-    timelogfile = os.path.join(filepath, 'time.log')
-    with open(timelogfile, 'r+b') as timelog:
-        prevruntimestamp = timelog.read()
-        timelog.seek(0)
-        timelog.write(datetime.datetime.strftime(run_time,
-                                                 '%Y-%m-%dT%H:%M:%SZ'))
-        timelog.truncate()
+    prevruntimestamp = timelog(run_time)
 
     # Initializing site + logging in
     login = config['login']
@@ -175,13 +179,10 @@ if __name__ == '__main__':
                               clients_useragent=login['useragent'])
         site.login(login['username'], login['password'])
         mblog.logdebug('logged in as ' + login['username'])
-    except(mwclient.LoginError):
-        mblog.logerror('LoginError: could not log in')
+    except mwclient.LoginError as e:
+        mblog.logerror('{0}. Login failed for {1}'.format(e, login['username']))
         logged_errors = True
-#    except(Exception):
-        mblog.logerror('Login failed') # FIXME more verbose error plz
-        logged_errors = True
-#        sys.exit()
+        sys.exit()
 
     learners = getlearnerinfo(getlearners(prevruntimestamp, site), site)
     mentors, genmentors = getmentors(site)
@@ -191,8 +192,8 @@ if __name__ == '__main__':
         try:
             mcat = mcat_dict[learner['category']]
             mentor = match(mentors[mcat], genmentors)
-        except (Exception):
-            mblog.logerror('Matching/default match failed for {}'.format(learner))
+        except Exception as e:
+            mblog.logerror('Matching failed for {}'.format(learner['learner']))
             logged_errors = True
             continue
 
@@ -208,35 +209,28 @@ if __name__ == '__main__':
         basecat = basecat_dict[learner['category']]
         greeting, topic = buildgreeting(learner['learner'], mname,
                                         basecat, matchmade)
-        print talkpage
-        print basecat
-        print greeting
-        print topic
 
         try:
             response = postinvite(talkpage, greeting, topic, flowenabled)
-            print response
             edited_pages = True
         except Exception as e:
             print e
-            mblog.logerror('Could not post match on page') #TODO add specifics
+            mblog.logerror('Could not post match on {}\'s page'.format(learner['learner']))
             logged_errors = True
             continue
 
-
-        # there is a problem here: 'int object is not iterable'
         try:
             revid, postid = getrevid(response, flowenabled)
             matchtime = parse_timestamp(gettimeposted(response, flowenabled))
             cataddtime = parse_timestamp(learner['cattime'])
-            mblog.logmatch(luid=luid, lprofile=learner['profile'], muid=muid,
-                           category=basecat, cataddtime=cataddtime,
+            mblog.logmatch(luid=learner['luid'], lprofile=learner['profile'],
+                           muid=muid, category=basecat, cataddtime=cataddtime,
                            matchtime=matchtime, matchmade=matchmade,
                            revid=revid, postid=postid, run_time=run_time)
             wrote_db = True
         except Exception as e: 
             print e
-            mblog.logerror('Could not write to DB') #TODO add specifics
+            mblog.logerror('Could not write to DB for {}'.format(learner['learner']))
             logged_errors = True
             continue
 
