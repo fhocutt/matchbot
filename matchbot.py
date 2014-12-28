@@ -18,7 +18,6 @@ import random
 import datetime
 import sys
 import os
-import json
 
 import sqlalchemy
 import mwclient
@@ -42,12 +41,15 @@ basecat_dict = {k: v for (k, v) in zip(lcats, basecats)}
 
 
 def parse_timestamp(t):
+    """Parse MediaWiki-style timestamps and return a datetime."""
     if t == '0000-00-00T00:00:00Z':
         return None
     return datetime.datetime.strptime(t, '%Y-%m-%dT%H:%M:%SZ')
 
 def timelog(run_time):
-    # get last time run and log time-started-running
+    """Get the timestamp from the last run, then log the current time
+    (UTC).
+    """
     timelogfile = os.path.join(filepath, 'time.log')
     with open(timelogfile, 'r+b') as timelog:
         prevruntimestamp = timelog.read()
@@ -58,14 +60,22 @@ def timelog(run_time):
     return prevruntimestamp
 
 def getlearners(prevruntimestamp, site):
+    """Get a list of learners who have created profiles since the last
+    time this script started running.
+
+    Returns a list of dictionaries, each containing the learner's
+    profile pageid, the profile page title, the category, and the
+    timestamp corresponding to when the category was added.
+
+    If it is not possible to retrieve the new profiles in a given
+    category, it skips that category and logs an error.
+    """
     learners = []
-    # get the new learners for all the categories
-    # info to start: profile page id, profile name, time cat added, category
     for category in lcats:
         try:
             newlearners = mbapi.newmembers(category, site, prevruntimestamp)
             for userdict in newlearners:
-                # add the results of that call to the list of users?
+                # Check that the page is actually in the Co-op
                 if userdict['profile'].startswith(prefix):
                     learners.append(userdict)
                 else:
@@ -76,16 +86,30 @@ def getlearners(prevruntimestamp, site):
     return learners
 
 def getlearnerinfo(learners, site):
-    # add information: username, userid, talk page id
+    """Given a list of dicts containing information on learners, add
+    the learner's username and userid to the corresponding dict. Return
+    the changed list of dicts.
+
+    Assumes that the owner of the profile created the profile.
+    """
     for userdict in learners:
-        #figure out who it is
         learner, luid = mbapi.userid(userdict['profile'], site)
         userdict['learner'] = learner
         userdict['luid'] = luid
     return learners
 
 def getmentors(site):
-    # find available mentors
+    """Using the config data, get lists of available mentors for each
+    category, filtering out mentors who have opted out of new matches.
+
+    Return:
+        mentors     : dict of lists of mentor names, keyed by mentor
+                        category
+        genmentors  : list of mentor names for mentors who will mentor
+                        on any topic
+
+    Assumes that the owner of the profile created the profile.
+    """
     mentors = {}
     nomore = mbapi.getallmembers(NOMENTEES, site)
     allgenmentors = mbapi.getallmembers(CATCHALL, site)
@@ -99,8 +123,8 @@ def getmentors(site):
     return (mentors, genmentors)
 
 def match(catmentors, genmentors):
-    """ Given two lists, returns a random choice from the first, or if there
-    are no elements in the first returns a random choice for the second.
+    """Given two lists, return a random choice from the first, or if there
+    are no elements in the first return a random choice from the second.
     If there are no elements in either return None.
     """
     if catmentors:
@@ -113,8 +137,10 @@ def match(catmentors, genmentors):
         return None
 
 def buildgreeting(learner, mentor, skill, matchmade):
-    """Puts the string together that can be posted to a talk page or
-       Flow board to introduce a potential mentor to a learner.
+    """Create a customized greeting string to be posted to a talk page
+    or Flow board to introduce a potential mentor to a learner.
+
+    Return the greeting and a topic string for the greeting post.
     """
     greetings = config['greetings']
     if matchmade:
@@ -125,39 +151,54 @@ def buildgreeting(learner, mentor, skill, matchmade):
         topic = greetings['nomatchtopic']
     return (greeting, topic)
 
-# FIXME handle namespace errors?
-def gettalkpage(profile):
+def getprofiletalkpage(profile):
+    """Get the talk page for a profile (a sub-page of the Co-op)."""
     talkpage = talkprefix + profile.lstrip(prefix)
     return talkpage
 
 def postinvite(pagetitle, greeting, topic, flowenabled):
-    """ Given a page, posts a greeting. If Flow is enabled or the page
-        does not already exist, posts as a new topic on a the page's
-        Flow board; otherwise, appends the greeting to the page's existing
-        text.
+    """Post a greeting, with topic, to a page. If Flow is enabled or
+    the page does not already exist, post a new topic on a the page's
+    Flow board; otherwise, appends the greeting to the page's existing
+    text.
+
+    Return the result of the API POST call as a dict.
     """
     if flowenabled:
         result = mbapi.postflow(pagetitle, topic, greeting, site)
         return result
     else:
         profile = site.Pages[pagetitle]
-#        if flowenabled == None:
-#            result = mbapi.postflow(pagetitle, greeting, topic, site)
-#            return result
-#        else:
-        newtext = '{0}\n\n=={1}==\n{2}'.format(profile.text(), topic, greeting)
-        result = profile.save(newtext, summary=topic)
-        return result
-    return False
+        if profile.text == '':
+            result = mbapi.postflow(pagetitle, greeting, topic, site)
+            return result
+        else:
+            newtext = '{0}\n\n=={1}==\n{2}'.format(profile.text(), topic, greeting)
+            result = profile.save(newtext, summary=topic)
+            return result
+    return None
 
 def getrevid(result, isflow):
+    """ Get the revid (for a non-Flow page) or the post-revision-id
+    (for a Flow page), given the API result for the POST request.
+
+    Return a tuple (revid, post-revision-id). Either revid or
+    post-revision-id will be None.
+    """
     if isflow:
         return (None, result['flow']['new-topic']['committed']['topiclist']['post-revision-id'])
     else:
         return (result['newrevid'], None)
 
-# TODO Flow is changing
 def gettimeposted(result, isflow):
+    """Get the time a revision was posted from the API POST result, if
+    possible.
+
+    If the page has Flow enabled, the time posted will be approximate.
+
+    If the page does not have Flow enabled, the time will match the
+    time in the wiki database for that revision.
+    """
     if isflow:
         return datetime.datetime.now() #FIXME (documentme)
     else:
@@ -184,11 +225,11 @@ if __name__ == '__main__':
         logged_errors = True
         sys.exit()
 
+    # create a list of learners who have joined since the previous run
     learners = getlearnerinfo(getlearners(prevruntimestamp, site), site)
     mentors, genmentors = getmentors(site)
 
     for learner in learners:
-        # make the matches, logging info
         try:
             mcat = mcat_dict[learner['category']]
             mentor = match(mentors[mcat], genmentors)
@@ -197,18 +238,31 @@ if __name__ == '__main__':
             logged_errors = True
             continue
 
-        if mentor == None:
-            mname, muid = mbapi.userid(DEFAULTMENTOR, site)
-        else:
-            mname, muid = mbapi.userid(mentor['profile'], site)
-            matchmade = True
+        try:
+        # if there is no match, leave a message with the default mentor but do
+        # not record a true match
+            if mentor == None:
+                mname, muid = mbapi.userid(DEFAULTMENTOR, site)
+            else:
+                mname, muid = mbapi.userid(mentor['profile'], site)
+                matchmade = True
+        except Exception as e:
+            print e
+            mblog.logerror('Could not get information for profile {}'.format(mentor['profile']))
+            logged_errors = True
+            continue
 
-
-        talkpage = gettalkpage(learner['profile'])
-        flowenabled = mbapi.flowenabled(talkpage, site)
-        basecat = basecat_dict[learner['category']]
-        greeting, topic = buildgreeting(learner['learner'], mname,
-                                        basecat, matchmade)
+        try:
+            talkpage = getprofiletalkpage(learner['profile'])
+            flowenabled = mbapi.flowenabled(talkpage, site)
+            basecat = basecat_dict[learner['category']]
+            greeting, topic = buildgreeting(learner['learner'], mname,
+                                            basecat, matchmade)
+        except Exception as e:
+            print e
+            mblog.logerror('Could not create a greeting for {}'.format(learner['learner']))
+            logged_errors = True
+            continue
 
         try:
             response = postinvite(talkpage, greeting, topic, flowenabled)
