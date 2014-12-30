@@ -39,6 +39,12 @@ DEFAULTMENTOR = config['defaultmentor']
 mcat_dict = {k: v for (k, v) in zip(lcats, mcats)}
 basecat_dict = {k: v for (k, v) in zip(lcats, basecats)}
 
+# To log
+run_time = datetime.datetime.utcnow()
+edited_pages = False
+wrote_db = False
+logged_errors = False
+
 
 def parse_timestamp(t):
     """Parse MediaWiki-style timestamps and return a datetime."""
@@ -80,7 +86,8 @@ def getlearners(prevruntimestamp, site):
                     learners.append(userdict)
                 else:
                     pass
-        except (Exception):
+        except Exception as e:
+            print e  # FIXME
             mblog.logerror('Could not fetch newly categorized profiles in {}'.format(category))
             logged_errors = True
     return learners
@@ -93,9 +100,15 @@ def getlearnerinfo(learners, site):
     Assumes that the owner of the profile created the profile.
     """
     for userdict in learners:
-        learner, luid = mbapi.userid(userdict['profile'], site)
-        userdict['learner'] = learner
-        userdict['luid'] = luid
+        try:
+            learner, luid = mbapi.userid(userdict['profile'], site)
+            userdict['learner'] = learner
+            userdict['luid'] = luid
+        except Exception as e:
+            print e  # FIXME
+            mblog.logerror('Could not get information for {}'.format(userdict['profile']))
+            logged_errors = True
+            continue
     return learners
 
 def getmentors(site):
@@ -118,8 +131,11 @@ def getmentors(site):
         try:
             catmentors = mbapi.getallmembers(category, site)
             mentors[category] = [x for x in catmentors if x not in nomore and x['profile'].startswith(prefix)]
-        except(Exception):
+        except Exception as e:
+            print e  # FIXME
             mblog.logerror('Could not fetch list of mentors for {}'.format(category))
+            logged_errors = True
+            continue
     return (mentors, genmentors)
 
 def match(catmentors, genmentors):
@@ -200,17 +216,12 @@ def gettimeposted(result, isflow):
     time in the wiki database for that revision.
     """
     if isflow:
-        return datetime.datetime.now() #FIXME (documentme)
+        return datetime.datetime.utcnow()
     else:
         return result['newtimestamp']
 
 if __name__ == '__main__':
-    # To log
-    run_time = datetime.datetime.utcnow()
-    edited_pages = False
-    wrote_db = False
-    logged_errors = False
-
+    # Get last time run, save time of run to log
     prevruntimestamp = timelog(run_time)
 
     # Initializing site + logging in
@@ -234,6 +245,7 @@ if __name__ == '__main__':
             mcat = mcat_dict[learner['category']]
             mentor = match(mentors[mcat], genmentors)
         except Exception as e:
+            print e  # FIXME
             mblog.logerror('Matching failed for {}'.format(learner['learner']))
             logged_errors = True
             continue
@@ -247,7 +259,7 @@ if __name__ == '__main__':
                 mname, muid = mbapi.userid(mentor['profile'], site)
                 matchmade = True
         except Exception as e:
-            print e
+            print e  # FIXME
             mblog.logerror('Could not get information for profile {}'.format(mentor['profile']))
             logged_errors = True
             continue
@@ -259,7 +271,7 @@ if __name__ == '__main__':
             greeting, topic = buildgreeting(learner['learner'], mname,
                                             basecat, matchmade)
         except Exception as e:
-            print e
+            print e  # FIXME
             mblog.logerror('Could not create a greeting for {}'.format(learner['learner']))
             logged_errors = True
             continue
@@ -268,7 +280,7 @@ if __name__ == '__main__':
             response = postinvite(talkpage, greeting, topic, flowenabled)
             edited_pages = True
         except Exception as e:
-            print e
+            print e  # FIXME
             mblog.logerror('Could not post match on {}\'s page'.format(learner['learner']))
             logged_errors = True
             continue
@@ -283,7 +295,7 @@ if __name__ == '__main__':
                            revid=revid, postid=postid, run_time=run_time)
             wrote_db = True
         except Exception as e: 
-            print e
+            print e  # FIXME
             mblog.logerror('Could not write to DB for {}'.format(learner['learner']))
             logged_errors = True
             continue
