@@ -79,7 +79,8 @@ def getlearners(prevruntimestamp, site):
     learners = []
     for category in lcats:
         try:
-            newlearners = mbapi.newmembers(category, site, prevruntimestamp)
+            newlearners = mbapi.getnewmembers(category, site,
+                                              prevruntimestamp)
             for userdict in newlearners:
                 # Check that the page is actually in the Co-op
                 if userdict['profile'].startswith(prefix):
@@ -92,6 +93,7 @@ def getlearners(prevruntimestamp, site):
             logged_errors = True
     return learners
 
+
 def getlearnerinfo(learners, site):
     """Given a list of dicts containing information on learners, add
     the learner's username and userid to the corresponding dict. Return
@@ -101,7 +103,7 @@ def getlearnerinfo(learners, site):
     """
     for userdict in learners:
         try:
-            learner, luid = mbapi.userid(userdict['profile'], site)
+            learner, luid = mbapi.getpagecreator(userdict['profile'], site)
             userdict['learner'] = learner
             userdict['luid'] = luid
         except Exception as e:
@@ -110,6 +112,7 @@ def getlearnerinfo(learners, site):
             logged_errors = True
             continue
     return learners
+
 
 def getmentors(site):
     """Using the config data, get lists of available mentors for each
@@ -124,13 +127,16 @@ def getmentors(site):
     Assumes that the owner of the profile created the profile.
     """
     mentors = {}
-    nomore = mbapi.getallmembers(NOMENTEES, site)
-    allgenmentors = mbapi.getallmembers(CATCHALL, site)
-    genmentors = [x for x in allgenmentors if x not in nomore and x['profile'].startswith(prefix)]
+
+    nomore = mbapi.getallcatmembers(NOMENTEES, site)
+    allgenmentors = mbapi.getallcatmembers(CATCHALL, site)
+    genmentors = [x for x in allgenmentors if x not in nomore and
+                  x['profile'].startswith(prefix)]
     for category in mcats:
         try:
-            catmentors = mbapi.getallmembers(category, site)
-            mentors[category] = [x for x in catmentors if x not in nomore and x['profile'].startswith(prefix)]
+            catmentors = mbapi.getallcatmembers(category, site)
+            mentors[category] = [x for x in catmentors if x not in nomore and
+                                 x['profile'].startswith(prefix)]
         except Exception as e:
             print e  # FIXME
             mblog.logerror('Could not fetch list of mentors for {}'.format(category))
@@ -254,9 +260,9 @@ if __name__ == '__main__':
         # if there is no match, leave a message with the default mentor but do
         # not record a true match
             if mentor == None:
-                mname, muid = mbapi.userid(DEFAULTMENTOR, site)
+                mname, muid = mbapi.getpagecreator(DEFAULTMENTOR, site)
             else:
-                mname, muid = mbapi.userid(mentor['profile'], site)
+                mname, muid = mbapi.getpagecreator(mentor['profile'], site)
                 matchmade = True
         except Exception as e:
             print e  # FIXME

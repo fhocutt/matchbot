@@ -1,23 +1,24 @@
 #!usr/bin/python2.7
-#
-# Quick test script.
-# Uses raw API calls through mwclient to test the Flow web API.
-# Uses prop=flowinfo to see if Flow is enabled.
-# Posts a new topic on a Flow board through action=flow&submodule=new-topic.
-#
 # GPL v3.
 
 import json
 import time
-import mwclient
-# import flow_mw_settings as mwcreds
+
 
 def flowenabled(title, site):
-    """Given a string with the page title, return True if Flow is enabled"""
+    """Find whether Flow is enabled on a given page.
+    Parameters:
+        title   :   a string containing the page title
+        site    :   a mwclient Site object associated with the page
+
+    Returns:
+        True    if Flow is enabled on the page
+        False   if Flow is not enabled on the page
+        None    if the page does not exist
+    """
     query = site.api(action = 'query',
                      titles = title,
                      prop = 'flowinfo')
-    print(query)
     pagedict = query['query']['pages']
     for page in pagedict:
         if page == '-1':
@@ -25,27 +26,17 @@ def flowenabled(title, site):
         else:
             return (u'enabled' in pagedict[page]['flowinfo']['flow'])
 
-# TODO: put this in place with logic (flow enabled or not), make it return
-def postflow(page, topic, message, site):
-    """testing posting a new Flow topic through the API"""
-    token = site.get_token('csrf')
-    cooptitle = 'Wikipedia:Co-op/Mentorship match'
-    kwargs = {'action': 'flow',
-              'page': cooptitle,
-              'submodule': 'new-topic',
-              'token': token,
-              'nttopic': topic,
-              'ntcontent': message,
-              'ntmetadataonly': 'true'}
-    query2 = site.api(**kwargs)
-    return query2
 
-def userid(title, site):
-    """ Returns the user who made the first edit to a page.
+def getpagecreator(title, site):
+    """ Retrieve user information for the user who made the first edit
+    to a page.
+    Parameters:
+        title   :   a string containing the page title
+        site    :   a mwclient Site object associated with the page
 
-    Given a string with the page title, returns (user, userid)
-
-    # /w/api.php?action=query&prop=revisions&format=json&rvdir=newer&titles=Wikipedia%3ACo-op%2FPerson2
+    Returns:
+        user    :   a string containing the page creator's user name
+        userid  :   a string containing the page creator's userid
     """
     query = site.api(action = 'query',
                      prop = 'revisions',
@@ -60,10 +51,10 @@ def userid(title, site):
         userid = pagedict[page]['revisions'][0]['userid']
     return (user, userid)
 
-# TODO: put in the call, make it return appropriately
-def newmembers(categoryname, site, timelastchecked):
-    """ Data for the following API call: """
-    #   /w/api.php?action=query&list=categorymembers&format=json&cmtitle=Category%3AWants%20to%20edit&cmprop=ids|title|timestamp&cmlimit=max&cmsort=timestamp&cmdir=older&cmend=2014-11-05T01%3A12%3A00Z&indexpageids=
+
+def getnewmembers(categoryname, site, timelastchecked):
+    """ Data for the following API call: 
+    """
     recentkwargs = {'action': 'query',
                     'list': 'categorymembers',
                     'cmtitle': categoryname,
@@ -71,9 +62,29 @@ def newmembers(categoryname, site, timelastchecked):
                     'cmlimit': 'max',
                     'cmsort': 'timestamp',
                     'cmdir': 'older',
-                    'cmend': timelastchecked}
+                    'cmend': timelastchecked,
+                    'continue': ''}
     result = site.api(**recentkwargs)
-    catusers = []
+    newcatmembers = makelearnerlist(result)
+
+    # I think this is an ok approach but I think this leads to weirdness with the learner list (first one gets run twice?)
+    while True:
+        newkwargs = recentkwargs.copy()
+        newkwargs['continue'] = result['continue']
+        result = site.api(**newkwargs)
+        newcatmembers = makelearnerlist(result, newcatmembers)
+        if 'continue' not in result:
+            break
+        
+    return newcatmembers
+
+
+def makelearnerlist(result, catusers=[]):
+    """Create a list of dicts containing information on each user from
+    the getnewmembers API result.
+
+    Optional parameter: catusers
+    """
     for page in result['query']['categorymembers']:
         userdict = {'profileid': page['pageid'],
                     'profile': page['title'],
@@ -82,46 +93,52 @@ def newmembers(categoryname, site, timelastchecked):
         catusers.append(userdict)
     return catusers
 
-#TODO
-def getallmembers(category, site):
+
+def getallcatmembers(category, site):
+    """
+    """
     kwargs = {'action': 'query',
               'list': 'categorymembers',
               'cmtitle': category,
               'cmprop': 'ids|title',
-              'cmlimit': 'max'}
-    query = site.api(**kwargs)
-    catmembers = []
+              'cmlimit': 'max',
+              'continue': ''}
+    result = site.api(**kwargs)
+    catmembers = addmentorinfo(result)
+
+    # continue shenanigans go here
+    return catmembers
+
+# TODO!
+def addmentorinfo(result, catmembers=[]):
+    """ TODO
+    """
     for page in query['query']['categorymembers']:
         userdict = {'profileid': page['pageid'], 'profile': page['title']}
         catmembers.append(userdict)
     return catmembers
 
+def postflow(page, topic, message, site):
+    """Post a new topic to a Flow board.
+    Parameters:
+        page    :   string containing the title of the page to post to
+        topic   :   string containing the new Flow topic
+        message :   string containing the message to post in the topic
+        site    :   logged-in mwclient Site object corresponding to
+                    the page
+    Returns the API POST result as a dictionary containing the post's
+    metadata.
 
-
-def savepage(page, addedtext, topic):
-    """ uses Page.save() to save page, gets timestamp and new revid.
-    format:
-    {u'contentmodel': u'wikitext',
-     u'newrevid': 219714,
-     u'newtimestamp': u'2014-12-14T05:32:09Z',
-     u'oldrevid': 218886,
-     u'pageid': 68971,
-     u'result': u'Success',
-     u'title': u'Sandbox'}
+    If the bot has the appropriate permissions, this will create Flow
+    boards on empty pages.
     """
-    newtext = page.text() + addedtext
-    result = page.save(newtext, summary=topic)
-    #TODO: if something weird happens here, or if there's nothing added, as {u'nochange': u'', u'contentmodel': u'wikitext', u'pageid': 68971, u'result': u'Success', u'title': u'Sandbox'}
-    revtimestamp = result['newtimestamp']
-    newrevid = result['newrevid']
-    return (newrevid, revtimestamp)
-
-if __name__ == '__main__':
-    # Initializing site + logging in
-    site = mwclient.Site(('https', 'test.wikipedia.org'),
-                         clients_useragent=mwcreds.useragent)
-    site.login(mwcreds.username, mwcreds.password)
-    print("You are logged in as %s." % mwcreds.username)
-
-    userid('Wikipedia:Co-op/Person2')
-    print(flowenabled('Wikipedia:Co-op/Mentorship match'))
+    token = site.get_token('csrf')
+    kwargs = {'action': 'flow',
+              'page': page,
+              'submodule': 'new-topic',
+              'token': token,
+              'nttopic': topic,
+              'ntcontent': message,
+              'ntmetadataonly': 'true'}
+    query = site.api(**kwargs)
+    return query
