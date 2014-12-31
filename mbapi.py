@@ -53,7 +53,20 @@ def getpagecreator(title, site):
 
 
 def getnewmembers(categoryname, site, timelastchecked):
-    """ Data for the following API call: 
+    """Get information on all pages in a given category that have been
+    added since a given time.
+
+    Parameters:
+        category        :   a string containing the category name,
+                            including the 'Category:' prefix
+        site            :   mwclient Site object corresponding to the
+                            desired category
+        timelastchecked :   a MediaWiki-formatted timestamp
+
+    Returns:
+        a list of dicts containing information on the category members.
+
+    Handles query continuations automatically.
     """
     recentkwargs = {'action': 'query',
                     'list': 'categorymembers',
@@ -62,20 +75,19 @@ def getnewmembers(categoryname, site, timelastchecked):
                     'cmlimit': 'max',
                     'cmsort': 'timestamp',
                     'cmdir': 'older',
-                    'cmend': timelastchecked,
-                    'continue': ''}
+                    'cmend': timelastchecked}
     result = site.api(**recentkwargs)
     newcatmembers = makelearnerlist(result)
 
-    # I think this is an ok approach but I think this leads to weirdness with the learner list (first one gets run twice?)
     while True:
-        newkwargs = recentkwargs.copy()
-        newkwargs['continue'] = result['continue']
-        result = site.api(**newkwargs)
-        newcatmembers = makelearnerlist(result, newcatmembers)
-        if 'continue' not in result:
+        if 'continue' in result:
+            newkwargs = recentkwargs.copy()
+            for arg in result['continue']:
+                newkwargs[arg] = result['continue'][arg]
+            result = site.api(**newkwargs)
+            newcatmembers = makelearnerlist(result, newcatmembers)
+        else:
             break
-        
     return newcatmembers
 
 
@@ -83,7 +95,16 @@ def makelearnerlist(result, catusers=[]):
     """Create a list of dicts containing information on each user from
     the getnewmembers API result.
 
-    Optional parameter: catusers
+    Parameters:
+        result      :   a dict containing the results of the
+                        getnewmembers API query
+        catusers    :   a list of dicts with information on category
+                        members from earlier queries. Optional,
+                        defaults to [].
+
+    Returns:
+        a list of dicts containing information on the category members
+        in the provided query.
     """
     for page in result['query']['categorymembers']:
         userdict = {'profileid': page['pageid'],
@@ -95,25 +116,55 @@ def makelearnerlist(result, catusers=[]):
 
 
 def getallcatmembers(category, site):
-    """
+    """Get information on all members of a given category
+
+    Parameters:
+        category:   a string containing the category name, including
+                    the 'Category:' prefix
+        site    :   mwclient Site object corresponding to the desired
+                    category
+
+    Returns:
+        a list of dicts containing information on the category members.
+
+    Handles query continuations automatically.
     """
     kwargs = {'action': 'query',
               'list': 'categorymembers',
               'cmtitle': category,
               'cmprop': 'ids|title',
               'cmlimit': 'max',
-              'continue': ''}
+             }
     result = site.api(**kwargs)
     catmembers = addmentorinfo(result)
 
-    # continue shenanigans go here
+    while True:
+        if 'continue' in result:
+            newkwargs = kwargs.copy()
+            for arg in result['continue']:
+                newkwargs[arg] = result['continue'][arg]
+            result = site.api(**newkwargs)
+            newcatmembers = addmentorinfo(result, catmembers)
+        else:
+            break
     return catmembers
 
-# TODO!
+
 def addmentorinfo(result, catmembers=[]):
-    """ TODO
+    """Create a list of dicts containing information on each user from
+    the getallcatmembers API result.
+
+    Parameters:
+        result      :   a dict containing the results of the
+                        getallmembers API query
+        catusers    :   a list of dicts with information on category
+                        members from earlier queries. Optional,
+                        defaults to [].
+    Returns:
+        a list of dicts containing information on the category members
+        in the provided query.
     """
-    for page in query['query']['categorymembers']:
+    for page in result['query']['categorymembers']:
         userdict = {'profileid': page['pageid'], 'profile': page['title']}
         catmembers.append(userdict)
     return catmembers
@@ -126,6 +177,7 @@ def postflow(page, topic, message, site):
         message :   string containing the message to post in the topic
         site    :   logged-in mwclient Site object corresponding to
                     the page
+
     Returns the API POST result as a dictionary containing the post's
     metadata.
 
