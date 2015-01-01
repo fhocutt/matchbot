@@ -22,7 +22,6 @@ import os
 import sqlalchemy
 import mwclient
 
-import mberrors
 import mbapi
 import mblog
 from load_config import filepath, config
@@ -88,8 +87,8 @@ def getlearners(prevruntimestamp, site):
                 else:
                     pass
         except Exception as e:
-            print e  # FIXME
-            mblog.logerror('Could not fetch newly categorized profiles in {}'.format(category))
+            mblog.logerror('Could not fetch new profiles in {}'.format(
+                category), exc_info=True)
             logged_errors = True
     return learners
 
@@ -107,8 +106,8 @@ def getlearnerinfo(learners, site):
             userdict['learner'] = learner
             userdict['luid'] = luid
         except Exception as e:
-            print e  # FIXME
-            mblog.logerror('Could not get information for {}'.format(userdict['profile']))
+            mblog.logerror('Could not get information for {}'.format(
+                userdict['profile']), exc_info=True)
             logged_errors = True
             continue
     return learners
@@ -138,8 +137,8 @@ def getmentors(site):
             mentors[category] = [x for x in catmentors if x not in nomore and
                                  x['profile'].startswith(prefix)]
         except Exception as e:
-            print e  # FIXME
-            mblog.logerror('Could not fetch list of mentors for {}'.format(category))
+            mblog.logerror('Could not fetch list of mentors for {}'.format(
+                category), exc_info=True)
             logged_errors = True
             continue
     return (mentors, genmentors)
@@ -228,7 +227,12 @@ def gettimeposted(result, isflow):
 
 if __name__ == '__main__':
     # Get last time run, save time of run to log
-    prevruntimestamp = timelog(run_time)
+    try:
+        prevruntimestamp = timelog(run_time)
+    except Exception as e:
+        mblog.logerror('Could not get time of previous run', exc_info=True)
+        logged_errors = True
+        sys.exit()
 
     # Initializing site + logging in
     login = config['login']
@@ -236,9 +240,9 @@ if __name__ == '__main__':
         site = mwclient.Site((login['protocol'], login['site']),
                               clients_useragent=login['useragent'])
         site.login(login['username'], login['password'])
-        mblog.logdebug('logged in as ' + login['username'])
     except mwclient.LoginError as e:
-        mblog.logerror('{0}. Login failed for {1}'.format(e, login['username']))
+        mblog.logerror('Login failed for {}'.format(login['username']),
+                       exc_info=True)
         logged_errors = True
         sys.exit()
 
@@ -251,8 +255,8 @@ if __name__ == '__main__':
             mcat = mcat_dict[learner['category']]
             mentor = match(mentors[mcat], genmentors)
         except Exception as e:
-            print e  # FIXME
-            mblog.logerror('Matching failed for {}'.format(learner['learner']))
+            mblog.logerror('Matching failed for {}'.format(learner['learner']),
+                           exc_info=True)
             logged_errors = True
             continue
 
@@ -265,8 +269,8 @@ if __name__ == '__main__':
                 mname, muid = mbapi.getpagecreator(mentor['profile'], site)
                 matchmade = True
         except Exception as e:
-            print e  # FIXME
-            mblog.logerror('Could not get information for profile {}'.format(mentor['profile']))
+            mblog.logerror('Could not get information for profile {}'.format(
+                mentor['profile']), exc_info=True)
             logged_errors = True
             continue
 
@@ -277,8 +281,8 @@ if __name__ == '__main__':
             greeting, topic = buildgreeting(learner['learner'], mname,
                                             basecat, matchmade)
         except Exception as e:
-            print e  # FIXME
-            mblog.logerror('Could not create a greeting for {}'.format(learner['learner']))
+            mblog.logerror('Could not create a greeting for {}'.format(
+                learner['learner']), exc_info=True)
             logged_errors = True
             continue
 
@@ -286,8 +290,8 @@ if __name__ == '__main__':
             response = postinvite(talkpage, greeting, topic, flowenabled)
             edited_pages = True
         except Exception as e:
-            print e  # FIXME
-            mblog.logerror('Could not post match on {}\'s page'.format(learner['learner']))
+            mblog.logerror('Could not post match on {}\'s page'.format(
+                learner['learner']), exc_info=True)
             logged_errors = True
             continue
 
@@ -301,9 +305,13 @@ if __name__ == '__main__':
                            revid=revid, postid=postid, run_time=run_time)
             wrote_db = True
         except Exception as e: 
-            print e  # FIXME
-            mblog.logerror('Could not write to DB for {}'.format(learner['learner']))
+            mblog.logerror('Could not write to DB for {}'.format(
+                learner['learner']), exc_info=True)
             logged_errors = True
             continue
 
-    mblog.logrun(run_time, edited_pages, wrote_db, logged_errors)
+    try:
+        mblog.logrun(run_time, edited_pages, wrote_db, logged_errors)
+    except Exception as e:
+        mblog.logerror('Could not log run at {}'.format(run_time),
+            exc_info=True)
