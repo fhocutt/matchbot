@@ -168,7 +168,7 @@ def buildgreeting(learner, mentor, skill, matchmade):
         greeting = greetings['matchgreeting'].format(learner, mentor, skill)
         topic = greetings['matchtopic']
     else:
-        greeting = greetings['nomatchgreeting']
+        greeting = greetings['nomatchgreeting'].format(mentor)
         topic = greetings['nomatchtopic']
     return (greeting, topic)
 
@@ -185,18 +185,14 @@ def postinvite(pagetitle, greeting, topic, flowenabled):
 
     Return the result of the API POST call as a dict.
     """
-    if flowenabled:
+    if flowenabled or flowenabled == None:
         result = mbapi.postflow(pagetitle, topic, greeting, site)
         return result
     else:
         profile = site.Pages[pagetitle]
-        if profile.text == '':
-            result = mbapi.postflow(pagetitle, greeting, topic, site)
-            return result
-        else:
-            newtext = '{0}\n\n=={1}==\n{2}'.format(profile.text(), topic, greeting)
-            result = profile.save(newtext, summary=topic)
-            return result
+        newtext = '{0}\n\n=={1}==\n{2} ~~~~'.format(profile.text(), topic, greeting)
+        result = profile.save(newtext, summary=topic)
+        return result
     return None
 
 def getrevid(result, isflow):
@@ -206,7 +202,9 @@ def getrevid(result, isflow):
     Return a tuple (revid, post-revision-id). Either revid or
     post-revision-id will be None.
     """
-    if isflow:
+    if 'nochange' in result:
+        return (None, None)
+    elif isflow or isflow == None:
         return (None, result['flow']['new-topic']['committed']['topiclist']['post-revision-id'])
     else:
         return (result['newrevid'], None)
@@ -220,7 +218,9 @@ def gettimeposted(result, isflow):
     If the page does not have Flow enabled, the time will match the
     time in the wiki database for that revision.
     """
-    if isflow:
+    if 'nochange' in result:
+        return None
+    elif isflow or isflow == None:
         return datetime.datetime.utcnow()
     else:
         return result['newtimestamp']
@@ -263,8 +263,9 @@ if __name__ == '__main__':
         try:
         # if there is no match, leave a message with the default mentor but do
         # not record a true match
-            if mentor == None:
+            if mentor is None:
                 mname, muid = mbapi.getpagecreator(DEFAULTMENTOR, site)
+                matchmade = False
             else:
                 mname, muid = mbapi.getpagecreator(mentor['profile'], site)
                 matchmade = True
@@ -297,7 +298,11 @@ if __name__ == '__main__':
 
         try:
             revid, postid = getrevid(response, flowenabled)
-            matchtime = parse_timestamp(gettimeposted(response, flowenabled))
+            timeposted = gettimeposted(response, flowenabled)
+            if timeposted:
+                matchtime = parse_timestamp(timeposted)
+            else:
+                matchtime = None
             cataddtime = parse_timestamp(learner['cattime'])
             mblog.logmatch(luid=learner['luid'], lprofile=learner['profile'],
                            muid=muid, category=basecat, cataddtime=cataddtime,

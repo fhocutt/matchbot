@@ -77,7 +77,7 @@ def getnewmembers(categoryname, site, timelastchecked):
                     'cmdir': 'older',
                     'cmend': timelastchecked}
     result = site.api(**recentkwargs)
-    newcatmembers = makelearnerlist(result)
+    newcatmembers = makelearnerlist(result, categoryname)
 
     while True:
         if 'continue' in result:
@@ -85,13 +85,13 @@ def getnewmembers(categoryname, site, timelastchecked):
             for arg in result['continue']:
                 newkwargs[arg] = result['continue'][arg]
             result = site.api(**newkwargs)
-            newcatmembers = makelearnerlist(result, newcatmembers)
+            newcatmembers = makelearnerlist(result, categoryname, newcatmembers)
         else:
             break
     return newcatmembers
 
 
-def makelearnerlist(result, catusers=[]):
+def makelearnerlist(result, categoryname, catusers=None):
     """Create a list of dicts containing information on each user from
     the getnewmembers API result.
 
@@ -100,12 +100,17 @@ def makelearnerlist(result, catusers=[]):
                         getnewmembers API query
         catusers    :   a list of dicts with information on category
                         members from earlier queries. Optional,
-                        defaults to [].
+                        defaults to None.
 
     Returns:
         a list of dicts containing information on the category members
         in the provided query.
     """
+    if catusers == None:
+        catusers = []
+    else:
+        pass
+
     for page in result['query']['categorymembers']:
         userdict = {'profileid': page['pageid'],
                     'profile': page['title'],
@@ -150,7 +155,7 @@ def getallcatmembers(category, site):
     return catmembers
 
 
-def addmentorinfo(result, catmembers=[]):
+def addmentorinfo(result, catmembers=None):
     """Create a list of dicts containing information on each user from
     the getallcatmembers API result.
 
@@ -164,6 +169,11 @@ def addmentorinfo(result, catmembers=[]):
         a list of dicts containing information on the category members
         in the provided query.
     """
+    if catmembers == None:
+        catmembers = []
+    else:
+        pass
+
     for page in result['query']['categorymembers']:
         userdict = {'profileid': page['pageid'], 'profile': page['title']}
         catmembers.append(userdict)
