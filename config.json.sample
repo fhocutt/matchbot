@@ -2,7 +2,8 @@
     "dbinfo": {
         "dbname": "SAMPLE",
         "defaultcnf": "SAMPLE",
-        "host": "SAMPLE"
+        "host": "SAMPLE",
+        "sqliteloc": "sqlite:////data/project/hostbot/matchbot/matches.db"
     },
     "defaultmentor": "default",
     "greetings": {

@@ -3,6 +3,7 @@ import logging.handlers
 import sys
 import os
 import sqlalchemy as sqa
+from load_config import config
 
 logpath = os.path.join(sys.argv[1], 'log')
 
@@ -73,7 +74,7 @@ def logmatch(luid, lprofile, category, muid, matchtime,
         postid      :   int. If a Flow board, the post-revision-id after
                         posting the new topic for the match.
     """
-    engine = sqa.create_engine('sqlite:///matches.db', echo=True)
+    engine = sqa.create_engine(config['dbinfo']['sqliteloc'], echo=True)
     metadata = sqa.MetaData()
     matches = sqa.Table('matches', metadata, autoload=True,
                         autoload_with=engine)
