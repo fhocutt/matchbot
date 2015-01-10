@@ -1,27 +1,35 @@
 import sqlalchemy as sqa
 import datetime
+from load_config import config
 
-def createtable():
-    engine = sqa.create_engine('sqlite:///matches.db', echo=True)
+def makeconnstr():
+    username = config['dbinfo']['username']
+    password = config['dbinfo']['password']
+    host = config['dbinfo']['host']
+    dbname = config['dbinfo']['dbname']
+    conn_str = 'mysql://{}:{}@{}/{}'.format(username, password, host, dbname)
+    return conn_str
+
+def createtable(conn_str):
+    engine = sqa.create_engine(conn_str, echo=True)
     metadata = sqa.MetaData()
     matches = sqa.Table('matches', metadata,
                         sqa.Column('id', sqa.Integer, primary_key = True),
                         sqa.Column('luid', sqa.Integer),
                         sqa.Column('lprofile', sqa.Integer),
-                        sqa.Column('category', sqa.String),
+                        sqa.Column('category', sqa.String(75)),
                         sqa.Column('muid', sqa.Integer),
                         sqa.Column('matchtime', sqa.DateTime),
                         sqa.Column('cataddtime', sqa.DateTime),
                         sqa.Column('revid', sqa.Integer),
                         sqa.Column('postid', sqa.Integer),
                         sqa.Column('matchmade', sqa.Boolean),
-                        sqa.Column('runid', sqa.Integer))
-
+                        sqa.Column('run_time', sqa.DateTime))
     metadata.create_all(engine)
 
-def insertmatches(luid, lprofile, category, muid, matchtime,
-                  cataddtime, matchmade, runid, revid=None, postid=None):
-    engine = sqa.create_engine('sqlite:///matches.db', echo=True)
+def insertmatches(conn_str, luid, lprofile, category, muid, matchtime,
+                  cataddtime, matchmade, run_time, revid=None, postid=None):
+    engine = sqa.create_engine(conn_str, echo=True)
     metadata = sqa.MetaData()
     matches = sqa.Table('matches', metadata, autoload=True,
                         autoload_with=engine)
@@ -31,12 +39,13 @@ def insertmatches(luid, lprofile, category, muid, matchtime,
                        'category': category, 'muid': muid,
                        'matchtime':matchtime, 'cataddtime': cataddtime,
                        'revid': revid, 'postid': postid, 'matchmade':
-                       matchmade, 'runid': runid})
+                       matchmade, 'run_time': run_time})
 
 def main():
-    createtable()
-    insertmatches(123, 234, 'coding', 345, datetime.datetime.now(),
-                  datetime.datetime.now(), True, 456, postid=6577)
+    conn_str = makeconnstr()
+    createtable(conn_str)
+#    insertmatches(conn_str, 123, 234, 'coding', 345, datetime.datetime.now(),
+#                  datetime.datetime.now(), True, datetime.datetime.now(), postid=6577)
 
 
 if __name__ == '__main__':

@@ -5,7 +5,10 @@ import os
 import sqlalchemy as sqa
 from load_config import config
 
+# possibly hacky
 logpath = os.path.join(sys.argv[1], 'log')
+# definitely hacky; needed so sqlalchemy can find MySQLdb
+sys.path.append('/usr/lib/python2.7/dist-packages/')
 
 
 def logrun(run_time, edited_pages, wrote_db, logged_errors):
@@ -85,3 +88,29 @@ def logmatch(luid, lprofile, category, muid, matchtime,
                        'matchtime':matchtime, 'cataddtime': cataddtime,
                        'revid': revid, 'postid': postid,
                        'matchmade': matchmade, 'run_time': run_time})
+
+def makeconnstr():
+    """Return a string with MySQL DB connecting information."""
+    username = config['dbinfo']['username']
+    password = config['dbinfo']['password']
+    host = config['dbinfo']['host']
+    dbname = config['dbinfo']['dbname']
+    conn_str = 'mysql://{}:{}@{}/{}'.format(username, password, host, dbname)
+    return conn_str
+
+def logmatchmysql(luid, lprofile, category, muid, matchtime,
+                  cataddtime, matchmade, run_time, revid=None, postid=None):
+    """Same as logmatch, but uses a MySQL database backend."""
+    conn_str = makeconnstr()
+    engine = sqa.create_engine(conn_str, echo=True)
+    metadata = sqa.MetaData()
+    matches = sqa.Table('matches', metadata, autoload=True,
+                        autoload_with=engine)
+    ins = matches.insert()
+    conn = engine.connect()
+    conn.execute(ins, {'luid': luid, 'lprofile': lprofile,
+                       'category': category, 'muid': muid,
+                       'matchtime':matchtime, 'cataddtime': cataddtime,
+                       'revid': revid, 'postid': postid, 'matchmade':
+                       matchmade, 'run_time': run_time})
+

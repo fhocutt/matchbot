@@ -165,7 +165,7 @@ def buildgreeting(learner, mentor, skill, matchmade):
     """
     greetings = config['greetings']
     if matchmade:
-        greeting = greetings['matchgreeting'].format(learner, mentor, skill)
+        greeting = greetings['matchgreeting'].format(mentor, skill)
         topic = greetings['matchtopic']
     else:
         greeting = greetings['nomatchgreeting'].format(mentor)
@@ -177,7 +177,7 @@ def getprofiletalkpage(profile):
     talkpage = talkprefix + profile.lstrip(prefix)
     return talkpage
 
-def postinvite(pagetitle, greeting, topic, flowenabled):
+def postinvite(pagetitle, greeting, topic, flowenabled, learner):
     """Post a greeting, with topic, to a page. If Flow is enabled or
     the page does not already exist, post a new topic on a the page's
     Flow board; otherwise, appends the greeting to the page's existing
@@ -190,7 +190,7 @@ def postinvite(pagetitle, greeting, topic, flowenabled):
         return result
     else:
         profile = site.Pages[pagetitle]
-        newtext = '{0}\n\n=={1}==\n{2} ~~~~'.format(profile.text(), topic, greeting)
+        newtext = '{0}\n\n=={1}==\nHello, {2}! {3} ~~~~'.format(profile.text(), topic, learner, greeting)
         result = profile.save(newtext, summary=topic)
         return result
     return None
@@ -223,7 +223,7 @@ def gettimeposted(result, isflow):
     elif isflow or isflow == None:
         return datetime.datetime.utcnow()
     else:
-        return result['newtimestamp']
+        return parse_timestamp(result['newtimestamp'])
 
 if __name__ == '__main__':
     # Get last time run, save time of run to log
@@ -288,7 +288,8 @@ if __name__ == '__main__':
             continue
 
         try:
-            response = postinvite(talkpage, greeting, topic, flowenabled)
+            response = postinvite(talkpage, greeting, topic, flowenabled,
+				  learner)
             edited_pages = True
         except Exception as e:
             mblog.logerror('Could not post match on {}\'s page'.format(
@@ -298,13 +299,13 @@ if __name__ == '__main__':
 
         try:
             revid, postid = getrevid(response, flowenabled)
-            timeposted = gettimeposted(response, flowenabled)
-            if timeposted:
-                matchtime = parse_timestamp(timeposted)
-            else:
-                matchtime = None
+            matchtime = gettimeposted(response, flowenabled)
             cataddtime = parse_timestamp(learner['cattime'])
             mblog.logmatch(luid=learner['luid'], lprofile=learner['profile'],
+                           muid=muid, category=basecat, cataddtime=cataddtime,
+                           matchtime=matchtime, matchmade=matchmade,
+                           revid=revid, postid=postid, run_time=run_time)
+            mblog.logmatchmysql(luid=learner['luid'], lprofile=learner['profile'],
                            muid=muid, category=basecat, cataddtime=cataddtime,
                            matchtime=matchtime, matchmade=matchmade,
                            revid=revid, postid=postid, run_time=run_time)
