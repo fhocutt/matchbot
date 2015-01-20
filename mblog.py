@@ -1,12 +1,22 @@
+# TODO: consider encoding
+"""
+mblog
+~~~~
+
+This module contains logging functions for MatchBot. These can log
+errors and run history to text files and matches to a relational
+database.
+"""
+
 import logging
 import logging.handlers
 import sys
 import os
 import sqlalchemy as sqa
-from load_config import config
+from load_config import config, filepath
 
 # possibly hacky
-logpath = os.path.join(sys.argv[1], 'log')
+logpath = os.path.join(filepath, 'log')
 # definitely hacky; needed so sqlalchemy can find MySQLdb
 sys.path.append('/usr/lib/python2.7/dist-packages/')
 
@@ -113,4 +123,3 @@ def logmatchmysql(luid, lprofile, category, muid, matchtime,
                        'matchtime':matchtime, 'cataddtime': cataddtime,
                        'revid': revid, 'postid': postid, 'matchmade':
                        matchmade, 'run_time': run_time})
-

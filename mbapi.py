@@ -1,5 +1,11 @@
-#!usr/bin/python2.7
-# GPL v3.
+# TODO: consider encoding
+"""
+mbapi
+~~~~~
+
+This module contains customized API calls and associated helper methods
+for MatchBot.
+"""
 
 import json
 import time

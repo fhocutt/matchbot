@@ -1,18 +1,29 @@
-# MatchBot is MediaWiki bot that finds and notifies entities of matches
-# based on categories on profile pages. It will be incorporated into the en.wp
-# Co-op program and should be able to be extended to match people with projects
-# in the IdeaLab.
-#
-# Released under GPL v3.
-#
-# MatchBot currently runs in this test space: 
-# https://test.wikipedia.org/wiki/Wikipedia:Co-op
-#
-# All mentor and learner profile pages are subpages of Wikipedia:Co-op.
-#
-# For each page tagged "Co-op learner", MatchBot v0.1.0 leaves a message on
-# the corresponding talk page with the name of a possible mentor (one for
-# each learning interest category on the page).
+# TODO: consider encoding
+# TODO: consider shebang, but how does this work with virtualenv?
+
+"""
+matchbot
+~~~~~~~~
+
+MatchBot is a MediaWiki bot that perfoms category-based matching among
+pages in a given on-wiki space. In the en.wp Co-op program, it leaves
+a message on a Co-op member's profile talk page when it detects a
+change in certain categories. This message mentions an appropriately
+matched mentor.
+
+To run:
+    $ python matchbot <path-to-config-dir>
+
+MatchBot expects to find two files in its containing directory:
+time.log, a text file containing a MediaWiki-formatted timestamp that
+denotes the last time the bot ran, and config.json, a configuration
+file containing settings such as login information, category names, the
+mentor who will be the default match if no category-based match can be
+made, and the text of the greeting messages to be posted.
+
+MatchBot logs information when a run is complete, when a match is made,
+and when an error occurs. Logs are stored in <path-to-config-dir>/log .
+"""
 
 import random
 import datetime

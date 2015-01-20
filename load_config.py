@@ -1,3 +1,11 @@
+# TODO: Consider encoding
+"""
+load_config
+~~~~~~~~~~~
+
+Load the config file given the path to its containing directory.
+"""
+
 import json
 import sys
 import os
