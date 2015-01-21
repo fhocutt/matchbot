@@ -12,7 +12,9 @@ import logging
 import logging.handlers
 import sys
 import os
+
 import sqlalchemy as sqa
+
 from load_config import config, filepath
 
 # possibly hacky
