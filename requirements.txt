@@ -1,0 +1,2 @@
+mwclient==0.7.2dev
+SQLAlchemy==0.9.7
