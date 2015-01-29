@@ -1,4 +1,6 @@
-# TODO: consider encoding
+#!/usr/bin/python
+# -*- coding: utf-8 -*-
+
 """
 mblog
 ~~~~
@@ -19,9 +21,6 @@ from load_config import config, filepath
 
 # possibly hacky
 logpath = os.path.join(filepath, 'log')
-# definitely hacky; needed so sqlalchemy can find MySQLdb
-sys.path.append('/usr/lib/python2.7/dist-packages/')
-
 
 def logrun(run_time, edited_pages, wrote_db, logged_errors):
     """Log information for each run to external log files.

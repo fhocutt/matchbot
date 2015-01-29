@@ -1,4 +1,6 @@
-# TODO: consider encoding
+#!/usr/bin/python
+# -*- coding: utf-8 -*-
+
 """
 mbapi
 ~~~~~

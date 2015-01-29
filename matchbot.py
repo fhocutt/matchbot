@@ -1,5 +1,5 @@
-# TODO: consider encoding
-# TODO: consider shebang, but how does this work with virtualenv?
+#!/usr/bin/python
+# -*- coding: utf-8 -*-
 
 """
 matchbot
@@ -60,7 +60,8 @@ def parse_timestamp(t):
     """Parse MediaWiki-style timestamps and return a datetime."""
     if t == '0000-00-00T00:00:00Z':
         return None
-    return datetime.datetime.strptime(t, '%Y-%m-%dT%H:%M:%SZ')
+    else:
+        return datetime.datetime.strptime(t, '%Y-%m-%dT%H:%M:%SZ')
 
 def timelog(run_time):
     """Get the timestamp from the last run, then log the current time

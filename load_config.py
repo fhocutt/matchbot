@@ -1,4 +1,6 @@
-# TODO: Consider encoding
+#!/usr/bin/python
+# -*- coding: utf-8 -*-
+
 """
 load_config
 ~~~~~~~~~~~
