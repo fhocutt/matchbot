@@ -38,18 +38,18 @@ import mblog
 from load_config import filepath, config
 
 
-lcats = config['pages']['lcats']
-mcats = config['pages']['mcats']
-basecats = config['pages']['basecats']
-prefix = config['pages']['prefix']
-talkprefix = config['pages']['talkprefix']
-NOMENTEES = config['pages']['NOMENTEES']
-CATCHALL = config['pages']['CATCHALL']
-DEFAULTMENTOR = config['defaultmentor']
-mcat_dict = {k: v for (k, v) in zip(lcats, mcats)}
-basecat_dict = {k: v for (k, v) in zip(lcats, basecats)}
+requestcats = config['categories']['requestcategories']
+mentorcats = config['categories']['mentorcategories']
+skillslist = config['categories']['skillslist']
+prefix = config['pages']['main']
+talkprefix = config['pages']['talk']
+optout = config['categories']['optout']
+general = config['categories']['general']
+defaultmentor = config['defaultmentorprofile']
+mentorcat_dict = {k: v for (k, v) in zip(requestcats, mentorcats)}
+skills_dict = {k: v for (k, v) in zip(requestcats, skillslist)}
 
-# To log
+# Variables to log
 run_time = datetime.datetime.utcnow()
 edited_pages = False
 wrote_db = False
@@ -87,7 +87,7 @@ def getlearners(prevruntimestamp, site):
     category, it skips that category and logs an error.
     """
     learners = []
-    for category in lcats:
+    for category in requestcats:
         try:
             newlearners = mbapi.getnewmembers(category, site,
                                               prevruntimestamp)
@@ -138,11 +138,11 @@ def getmentors(site):
     """
     mentors = {}
 
-    nomore = mbapi.getallcatmembers(NOMENTEES, site)
-    allgenmentors = mbapi.getallcatmembers(CATCHALL, site)
+    nomore = mbapi.getallcatmembers(optout, site)
+    allgenmentors = mbapi.getallcatmembers(general, site)
     genmentors = [x for x in allgenmentors if x not in nomore and
                   x['profile'].startswith(prefix)]
-    for category in mcats:
+    for category in mentorcats:
         try:
             catmentors = mbapi.getallcatmembers(category, site)
             mentors[category] = [x for x in catmentors if x not in nomore and
@@ -201,10 +201,11 @@ def postinvite(pagetitle, greeting, topic, flowenabled, learner):
         return result
     else:
         profile = site.Pages[pagetitle]
-        newtext = '{0}\n\n=={1}==\nHello, {2}! {3} ~~~~'.format(profile.text(), topic, learner, greeting)
-        result = profile.save(newtext, summary=topic)
+        addedtext = config['greetings']['noflowtemplate'].format(topic,
+            learner, greeting)
+        newpagecontents = '{0} {1}'.format(profile.text(), addedtext)
+        result = profile.save(newpagecontents, summary=topic)
         return result
-    return None
 
 def getrevid(result, isflow):
     """ Get the revid (for a non-Flow page) or the post-revision-id
@@ -275,7 +276,7 @@ if __name__ == '__main__':
         # if there is no match, leave a message with the default mentor but do
         # not record a true match
             if mentor is None:
-                mname, muid = mbapi.getpagecreator(DEFAULTMENTOR, site)
+                mname, muid = mbapi.getpagecreator(defaultmentor, site)
                 matchmade = False
             else:
                 mname, muid = mbapi.getpagecreator(mentor['profile'], site)
@@ -289,9 +290,9 @@ if __name__ == '__main__':
         try:
             talkpage = getprofiletalkpage(learner['profile'])
             flowenabled = mbapi.flowenabled(talkpage, site)
-            basecat = basecat_dict[learner['category']]
+            skill = skills_dict[learner['category']]
             greeting, topic = buildgreeting(learner['learner'], mname,
-                                            basecat, matchmade)
+                                            skill, matchmade)
         except Exception as e:
             mblog.logerror('Could not create a greeting for {}'.format(
                 learner['learner']), exc_info=True)
@@ -313,15 +314,15 @@ if __name__ == '__main__':
             matchtime = gettimeposted(response, flowenabled)
             cataddtime = parse_timestamp(learner['cattime'])
             mblog.logmatch(luid=learner['luid'], lprofile=learner['profile'],
-                           muid=muid, category=basecat, cataddtime=cataddtime,
+                           muid=muid, category=skill, cataddtime=cataddtime,
                            matchtime=matchtime, matchmade=matchmade,
                            revid=revid, postid=postid, run_time=run_time)
             mblog.logmatchmysql(luid=learner['luid'], lprofile=learner['profile'],
-                           muid=muid, category=basecat, cataddtime=cataddtime,
+                           muid=muid, category=skill, cataddtime=cataddtime,
                            matchtime=matchtime, matchmade=matchmade,
                            revid=revid, postid=postid, run_time=run_time)
             wrote_db = True
-        except Exception as e: 
+        except Exception as e:
             mblog.logerror('Could not write to DB for {}'.format(
                 learner['learner']), exc_info=True)
             logged_errors = True
