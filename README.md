@@ -9,6 +9,7 @@ identified by the presence of category tags on a profile page. MatchBot
 inspects these categories to match mentors and learners, who are then free to
 follow up with each other and start asking and answering questions.
 
+[More technical information on the bot's role on English Wikipedia.](https://en.wikipedia.org/wiki/User:HostBot/Co-op)
 
 ## Getting started
 
@@ -41,14 +42,17 @@ will run the script.
 MatchBot will not run if the directory specified in `<path-to-config>` does not
 contain `config.json`, `time.log`, and a `logs/` folder.
 
-## Dependencies
+### Running on Tool Labs
 
-MatchBot has been developed and tested using the following versions of its
-dependencies:
-```
-mwclient==0.7.2dev
-SQLAlchemy==0.9.7
-```
+* set up your bot's account on the wiki you're running on
+* set up a database account on Labs
+* clone the repo
+* add your information to `config.json`
+* set up a virtualenv with all things
+* set it up to run on cron
+
+## Dependencies
+See `requirements.txt` for dependencies.
 
 Notes:
 
@@ -58,8 +62,9 @@ Notes:
 $ pip install git+git://github.com/mwclient/mwclient.git
 ```
   The 0.7.1 version of mwclient should work as well but has not been tested yet.
-* SQLAlchemy depends on MySQLdb. If unexpected errors are happening, they may
-  be MySQLdb path errors.
+* SQLAlchemy depends on MySQLdb. On Tool Labs, if you are having a problem
+  involving MySQLdb, try running `pip install mysql-python` from inside your
+  virtualenv.
 
 
 ## How matches are made
@@ -96,7 +101,7 @@ MatchBot assumes that:
 
 MatchBot keeps user-configurable information (login and database information,
 text of the greetings to post, the default mentor to contact when a match is not
-found, relevant category titles, and namespace/subpage information).
+found, relevant category titles, and namespace/subpage information) in a configuration file.
 
 To change these settings, use a text editor to edit `config.json`. You should
 add `config.json` to your `.gitignore` file to avoid accidentally uploading
@@ -137,10 +142,12 @@ same order.
 
 
 #### Database information (`dbinfo`):
-`dbname`, `host`: Database name and host for the MySQL database you are using to log matches (see [Logging](#Logging)).
+* `dbname`, `host`: Database name and host for the MySQL database you are using
+  to log matches (see [Logging](#Logging)).
+* `username`, `password`: Username and password for the MySQL database; distinct
+  from the bot's wiki username and password.
 
-
-#### Default mentor (`defaultmentor`):
+#### Default mentor (`defaultmentorprofile`):
 The title of the Co-op maintainer's profile page in the Co-op. This person will be notified if no match is possible.
 
 
@@ -151,20 +158,26 @@ Co-op member and their new mentor of the match, and one that is posted when no
 match can be made and which welcomes the person and notifies the Co-op
 maintainer.
 
-topic is posted as the topic of the new Flow post (for Flow boards) and section header for normal talk pages, as well as the edit summary.
+Greetings may be posted on standard talk pages or as new topics on a Flow board.
+If a page has already been created as a standard talk page, the bot cannot
+turn the page into a Flow board.
 
-greeting is posted as the text of the Flow post or the section contents. The example one will generate an Echo notification for
+The bot will need to have the `flow-create-board` right in order to create Flow 
+boards on blank pages. This right can be granted by adding the bot to your
+wiki's [flowbot usergroup](https://en.wikipedia.org/wiki/Special:ListUsers?group=flow-bot). 
+If this right is not granted, the bot will post the invitation on a standard talk page.
 
-`{0}`: The user name of the mentor
-`{1}`: The skill requested ("communication", "general editing skills", etc.)
-
-nomatchgreeting:
-`{0}`: The user name of the Co-op maintainer
-
-`noflowtemplate`: Template to add a new section and notify the learner. Designed to be used with both the match and no-match options.
-`{0}`: Title for the new section
-`{1}`: Requester's name (so they get an Echo notification)
-`{2}`: Section text
+* `topic`: Topic of the new Flow post (for Flow boards) and section header for normal talk pages. Also used as the edit summary.
+* `greeting`: Text of the Flow post or the section contents. This will generate an Echo notification for the mentor.
+     * `{0}`: The user name of the mentor
+     * `{1}`: The skill requested ("communication", "general editing skills", etc.)
+* `nomatchgreeting`: Text of the Flow post or section contents if no mentor can be found.
+     * `{0}`: The user name of the Co-op maintainer
+* `noflowtemplate`: Template to add a new section and notify the learner when
+  posting on a standard talk page. Designed to be used with either the match and no-match greeting.
+     * `{0}`: Title for the new section
+     * `{1}`: Requester's name (so they get an Echo notification)
+     * `{2}`: Section text
 
 *NOTE:* All `{N}`-type text listed above *must* be included in your messages,
 no matter what other changes you make to the message text. For example, a
@@ -172,11 +185,9 @@ no matter what other changes you make to the message text. For example, a
 lead to errors that prevent the message from being posted.
 
 
-(link to flowbot usergroup and the user account must be in the flowbot user group to post flow pages; but it'll work with normal pages)
-
 #### Login information (`login`)
 
-* `username`, `password`: Your bot's username and password.
+* `username`, `password`: Your bot's username and password on the wiki it runs on.
 * `protocol`: `http` or `https`. `https` is more secure and is recommended if
   the wiki supports it.
 * `site`: the URL of the wiki the bot runs on (for instance, `en.wikipedia.org`
@@ -198,7 +209,7 @@ page.
 
 ## Logging
 MatchBot logs information every time it is run. All log files are stored in
-`path/to/matchbot/logs/`.
+`path/to/matchbot/logs/`; the database of matches is stored on Tool Labs.
 
 ### Runs
 
@@ -217,38 +228,41 @@ backup logs are kept, each for 60 days.
 
 ### Matches
 
-Information about matches is logged to a relational database. 
+Information about matches is logged to a relational database with the following
+structure:
 
-The schema for the appropriate sqlite3 backend is:
 ```sql
-sqlite> .schema
-CREATE TABLE matches (
-    id INTEGER NOT NULL,
-    luid INTEGER,
-    lprofile INTEGER,
-    category VARCHAR,
-    muid INTEGER,
-    matchtime DATETIME,
-    cataddtime DATETIME,
-    revid INTEGER,
-    postid INTEGER,
-    matchmade BOOLEAN,
-    runid INTEGER,
-    PRIMARY KEY (id)
-);
+> SHOW COLUMNS FROM matches;
+
++------------+-------------+------+-----+---------+----------------+
+| Field      | Type        | Null | Key | Default | Extra          |
++------------+-------------+------+-----+---------+----------------+
+| id         | int(11)     | NO   | PRI | NULL    | auto_increment |
+| luid       | int(11)     | YES  |     | NULL    |                |
+| lprofileid | int(11)     | YES  |     | NULL    |                |
+| category   | varchar(75) | YES  |     | NULL    |                |
+| muid       | int(11)     | YES  |     | NULL    |                |
+| matchtime  | datetime    | YES  |     | NULL    |                |
+| cataddtime | datetime    | YES  |     | NULL    |                |
+| revid      | int(11)     | YES  |     | NULL    |                |
+| postid     | varchar(50) | YES  |     | NULL    |                |
+| matchmade  | tinyint(1)  | YES  |     | NULL    |                |
+| run_time   | datetime    | YES  |     | NULL    |                |
++------------+-------------+------+-----+---------+----------------+
 ```
-Eventually MatchBot's match logging will only be backed by a MySQL database
+
+MatchBot's match logging is backed by a MySQL database
 on [Tool Labs](https://wikitech.wikimedia.org/wiki/Help:Tool_Labs).
+
+Help on Tool Labs is available on the `#wikimedia-labs` IRC channel on
+Freenode.
 
 ### Errors
 
 When possible, MatchBot simply logs errors and allows the script to continue.
 Errors are logged to `matchbot_errors.log`. They include a stack trace for
 all exceptions raised, including ones that are logged and handled so MatchBot
-can finish a run.
+can finish running.
 
-
-
-
-TRY: create a co-op page with error traces instead of/in addition to email? Good idea.
-make sure the maintainer is watching this
+The `matchbot_errors.log` file is not automatically rotated. If the file is
+inconveniently large, you can compress it or delete it.
