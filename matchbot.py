@@ -265,8 +265,8 @@ if __name__ == '__main__':
 
     for learner in learners:
         try:
-            mcat = mcat_dict[learner['category']]
-            mentor = match(mentors[mcat], genmentors)
+            mentorcat = mentorcat_dict[learner['category']]
+            mentor = match(mentors[mentorcat], genmentors)
         except Exception as e:
             mblog.logerror('Matching failed for {}'.format(learner['learner']),
                            exc_info=True)
@@ -302,7 +302,7 @@ if __name__ == '__main__':
 
         try:
             response = postinvite(talkpage, greeting, topic, flowenabled,
-				  learner)
+				  learner['learner'])
             edited_pages = True
         except Exception as e:
             mblog.logerror('Could not post match on {}\'s page'.format(
@@ -314,11 +314,11 @@ if __name__ == '__main__':
             revid, postid = getrevid(response, flowenabled)
             matchtime = gettimeposted(response, flowenabled)
             cataddtime = parse_timestamp(learner['cattime'])
-            mblog.logmatch(luid=learner['luid'], lprofile=learner['profile'],
+            """mblog.logmatch(luid=learner['luid'], lprofile=learner['profile'],
                            muid=muid, category=skill, cataddtime=cataddtime,
                            matchtime=matchtime, matchmade=matchmade,
-                           revid=revid, postid=postid, run_time=run_time)
-            mblog.logmatchmysql(luid=learner['luid'], lprofile=learner['profile'],
+                           revid=revid, postid=postid, run_time=run_time)"""
+            mblog.logmatchmysql(luid=learner['luid'], lprofileid=learner['profileid'],
                            muid=muid, category=skill, cataddtime=cataddtime,
                            matchtime=matchtime, matchmade=matchmade,
                            revid=revid, postid=postid, run_time=run_time)

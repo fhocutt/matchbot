@@ -16,18 +16,18 @@ def createtable(conn_str):
     matches = sqa.Table('matches', metadata,
                         sqa.Column('id', sqa.Integer, primary_key = True),
                         sqa.Column('luid', sqa.Integer),
-                        sqa.Column('lprofile', sqa.Integer),
+                        sqa.Column('lprofileid', sqa.Integer),
                         sqa.Column('category', sqa.String(75)),
                         sqa.Column('muid', sqa.Integer),
                         sqa.Column('matchtime', sqa.DateTime),
                         sqa.Column('cataddtime', sqa.DateTime),
                         sqa.Column('revid', sqa.Integer),
-                        sqa.Column('postid', sqa.Integer),
+                        sqa.Column('postid', sqa.String(50)),
                         sqa.Column('matchmade', sqa.Boolean),
                         sqa.Column('run_time', sqa.DateTime))
     metadata.create_all(engine)
 
-def insertmatches(conn_str, luid, lprofile, category, muid, matchtime,
+def insertmatches(conn_str, luid, lprofileid, category, muid, matchtime,
                   cataddtime, matchmade, run_time, revid=None, postid=None):
     engine = sqa.create_engine(conn_str, echo=True)
     metadata = sqa.MetaData()
@@ -35,7 +35,7 @@ def insertmatches(conn_str, luid, lprofile, category, muid, matchtime,
                         autoload_with=engine)
     ins = matches.insert()
     conn = engine.connect()
-    conn.execute(ins, {'luid': luid, 'lprofile': lprofile,
+    conn.execute(ins, {'luid': luid, 'lprofileid': lprofileid,
                        'category': category, 'muid': muid,
                        'matchtime':matchtime, 'cataddtime': cataddtime,
                        'revid': revid, 'postid': postid, 'matchmade':

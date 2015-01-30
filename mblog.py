@@ -67,7 +67,7 @@ def logerror(message, exc_info=False):
 # TODO: get running on labs
 # TODO: take echo=True out for production
 # TODO: check whether post-revision-id is a string or int
-def logmatch(luid, lprofile, category, muid, matchtime,
+def logmatch(luid, lprofileid, category, muid, matchtime,
                   cataddtime, matchmade, run_time, revid=None, postid=None):
     """Log information about the match to a relational database.
 
@@ -94,7 +94,7 @@ def logmatch(luid, lprofile, category, muid, matchtime,
                         autoload_with=engine)
     ins = matches.insert()
     conn = engine.connect()
-    conn.execute(ins, {'luid': luid, 'lprofile': lprofile,
+    conn.execute(ins, {'luid': luid, 'lprofileid': lprofileid,
                        'category': category, 'muid': muid,
                        'matchtime':matchtime, 'cataddtime': cataddtime,
                        'revid': revid, 'postid': postid,
@@ -106,10 +106,10 @@ def makeconnstr():
     password = config['dbinfo']['password']
     host = config['dbinfo']['host']
     dbname = config['dbinfo']['dbname']
-    conn_str = 'mysql://{}:{}@{}/{}'.format(username, password, host, dbname)
+    conn_str = 'mysql://{}:{}@{}/{}?charset=utf8&use_unicode=0'.format(username, password, host, dbname)
     return conn_str
 
-def logmatchmysql(luid, lprofile, category, muid, matchtime,
+def logmatchmysql(luid, lprofileid, category, muid, matchtime,
                   cataddtime, matchmade, run_time, revid=None, postid=None):
     """Same as logmatch, but uses a MySQL database backend."""
     conn_str = makeconnstr()
@@ -119,7 +119,7 @@ def logmatchmysql(luid, lprofile, category, muid, matchtime,
                         autoload_with=engine)
     ins = matches.insert()
     conn = engine.connect()
-    conn.execute(ins, {'luid': luid, 'lprofile': lprofile,
+    conn.execute(ins, {'luid': luid, 'lprofileid': lprofileid,
                        'category': category, 'muid': muid,
                        'matchtime':matchtime, 'cataddtime': cataddtime,
                        'revid': revid, 'postid': postid, 'matchmade':
