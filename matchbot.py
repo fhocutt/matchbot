@@ -321,11 +321,7 @@ if __name__ == '__main__':
             revid, postid = getrevid(response, flowenabled)
             matchtime = gettimeposted(response, flowenabled)
             cataddtime = parse_timestamp(learner['cattime'])
-            """mblog.logmatch(luid=learner['luid'], lprofileid=learner['profileid'],
-                           muid=muid, category=skill, cataddtime=cataddtime,
-                           matchtime=matchtime, matchmade=matchmade,
-                           revid=revid, postid=postid, run_time=run_time)"""
-            mblog.logmatchmysql(luid=learner['luid'], lprofileid=learner['profileid'],
+            mblog.logmatch(luid=learner['luid'], lprofileid=learner['profileid'],
                            muid=muid, category=skill, cataddtime=cataddtime,
                            matchtime=matchtime, matchmade=matchmade,
                            revid=revid, postid=postid, run_time=run_time)

@@ -49,10 +49,10 @@ def logrun(run_time, edited_pages, wrote_db, logged_errors):
     logger.info(message)
 
 
-# FIXME add automatic emails
-# what to use for smtp server, surely there's something with that?
+# TODO: add some sort of automatic error notification, possibly
+# a post on a wikipage
 def logerror(message, exc_info=False):
-    """
+    """Log information when an error occurs to an external log file.
     """
     logger = logging.getLogger(__name__)
     logger.setLevel(logging.ERROR)
@@ -63,10 +63,6 @@ def logerror(message, exc_info=False):
     logger.error(message, exc_info=exc_info)
 
 
-# TODO: get db info from config file
-# TODO: get running on labs
-# TODO: take echo=True out for production
-# TODO: check whether post-revision-id is a string or int
 def logmatch(luid, lprofileid, category, muid, matchtime,
                   cataddtime, matchmade, run_time, revid=None, postid=None):
     """Log information about the match to a relational database.
@@ -88,7 +84,8 @@ def logmatch(luid, lprofileid, category, muid, matchtime,
         postid      :   int. If a Flow board, the post-revision-id after
                         posting the new topic for the match.
     """
-    engine = sqa.create_engine(config['dbinfo']['sqliteloc'], echo=True)
+    conn_str = makeconnstr()
+    engine = sqa.create_engine(conn_str, echo=True)
     metadata = sqa.MetaData()
     matches = sqa.Table('matches', metadata, autoload=True,
                         autoload_with=engine)
@@ -108,19 +105,3 @@ def makeconnstr():
     dbname = config['dbinfo']['dbname']
     conn_str = 'mysql://{}:{}@{}/{}?charset=utf8&use_unicode=0'.format(username, password, host, dbname)
     return conn_str
-
-def logmatchmysql(luid, lprofileid, category, muid, matchtime,
-                  cataddtime, matchmade, run_time, revid=None, postid=None):
-    """Same as logmatch, but uses a MySQL database backend."""
-    conn_str = makeconnstr()
-    engine = sqa.create_engine(conn_str, echo=True)
-    metadata = sqa.MetaData()
-    matches = sqa.Table('matches', metadata, autoload=True,
-                        autoload_with=engine)
-    ins = matches.insert()
-    conn = engine.connect()
-    conn.execute(ins, {'luid': luid, 'lprofileid': lprofileid,
-                       'category': category, 'muid': muid,
-                       'matchtime':matchtime, 'cataddtime': cataddtime,
-                       'revid': revid, 'postid': postid, 'matchmade':
-                       matchmade, 'run_time': run_time})
