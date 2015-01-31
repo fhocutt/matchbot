@@ -1,66 +1,167 @@
-# MatchBot is MediaWiki bot that finds and notifies entities of matches
-# based on categories on profile pages. It will be incorporated into the en.wp
-# Co-op program and should be able to be extended to match people with projects
-# in the IdeaLab.
-#
-# Released under GPL v3.
-#
-# MatchBot currently runs in this test space: 
-# https://test.wikipedia.org/wiki/Wikipedia:Co-op
-#
-# All mentor and learner profile pages are subpages of Wikipedia:Co-op.
-#
-# For each page tagged "Co-op learner", MatchBot v0.1.0 leaves a message on
-# the corresponding talk page with the name of a possible mentor (one for
-# each learning interest category on the page).
+#!/usr/bin/python
+# -*- coding: utf-8 -*-
+
+"""
+matchbot
+~~~~~~~~
+
+MatchBot is a MediaWiki bot that perfoms category-based matching among
+pages in a given on-wiki space. In the en.wp Co-op program, it leaves
+a message on a Co-op member's profile talk page when it detects a
+change in certain categories. This message mentions an appropriately
+matched mentor.
+
+To run:
+    $ python matchbot <path-to-config-dir>
+
+MatchBot expects to find two files in its containing directory:
+time.log, a text file containing a MediaWiki-formatted timestamp that
+denotes the last time the bot ran, and config.json, a configuration
+file containing settings such as login information, category names, the
+mentor who will be the default match if no category-based match can be
+made, and the text of the greeting messages to be posted.
+
+MatchBot logs information when a run is complete, when a match is made,
+and when an error occurs. Logs are stored in <path-to-config-dir>/log .
+"""
 
 import random
 import datetime
-import logging
-import logging.handlers
-import ConfigParser
 import sys
+import os
 
 import sqlalchemy
 import mwclient
 
-# Config file with login information and user-agent string
-import matchbot_settings
-import mberrors
 import mbapi
 import mblog
+from load_config import filepath, config
 
 
-# TODO: Consider whether these should be kept here or in a config file
-mcats = ['Category:Co-op mentors with best practice skills',
-'Category:Co-op mentors with communication skills',
-'Category:Co-op mentors with writing skills',
-'Category:Co-op mentors with general editing skills',
-'Category:Co-op mentors with technical editing skills']
-CATCHALL = 'Category:Co-op mentors with general editing skills'
-NOMENTEES = 'Category:Co-op mentor not taking new requests'
-lcats = ['Category:Co-op/Requests/Best practices',
-	 'Category:Co-op/Requests/Communication',
-                'Category:Co-op/Requests/Writing',
-                'Category:Co-op/Requests/Other',
-		'Category:Co-op/Requests/Technical editing']
-category_dict = {k:v for (k,v) in zip(lcats, mcats)}
+requestcats = config['categories']['requestcategories']
+mentorcats = config['categories']['mentorcategories']
+skillslist = config['categories']['skillslist']
+prefix = config['pages']['main']
+talkprefix = config['pages']['talk']
+optout = config['categories']['optout']
+general = config['categories']['general']
+defaultmentor = config['defaultmentorprofile']
+mentorcat_dict = {k: v for (k, v) in zip(requestcats, mentorcats)}
+skills_dict = {k: v for (k, v) in zip(requestcats, skillslist)}
 
-
-# constants for run logs:
-run_id = 0 # or sys.argv[1], depending on cron setup TODO
+# Variables to log
+run_time = datetime.datetime.utcnow()
 edited_pages = False
 wrote_db = False
 logged_errors = False
 
+
 def parse_timestamp(t):
+    """Parse MediaWiki-style timestamps and return a datetime."""
     if t == '0000-00-00T00:00:00Z':
         return None
-    return datetime.datetime.strptime(t, '%Y-%m-%dT%H:%M:%SZ')
+    else:
+        return datetime.datetime.strptime(t, '%Y-%m-%dT%H:%M:%SZ')
+
+def timelog(run_time):
+    """Get the timestamp from the last run, then log the current time
+    (UTC).
+    """
+    timelogfile = os.path.join(filepath, 'time.log')
+    with open(timelogfile, 'r+b') as timelog:
+        prevruntimestamp = timelog.read()
+        timelog.seek(0)
+        timelog.write(datetime.datetime.strftime(run_time,
+                                                 '%Y-%m-%dT%H:%M:%SZ'))
+        timelog.truncate()
+    return prevruntimestamp
+
+def getlearners(prevruntimestamp, site):
+    """Get a list of learners who have created profiles since the last
+    time this script started running.
+
+    Returns a list of dictionaries, each containing the learner's
+    profile pageid, the profile page title, the category, and the
+    timestamp corresponding to when the category was added.
+
+    If it is not possible to retrieve the new profiles in a given
+    category, it skips that category and logs an error.
+    """
+    learners = []
+    for category in requestcats:
+        try:
+            newlearners = mbapi.getnewmembers(category, site,
+                                              prevruntimestamp)
+            mblog.logerror(newlearners)
+            for userdict in newlearners:
+                # Check that the page is actually in the Co-op
+                if userdict['profile'].startswith(prefix):
+                    learners.append(userdict)
+                else:
+                    pass
+        except Exception as e:
+            mblog.logerror('Could not fetch new profiles in {}'.format(
+                category), exc_info=True)
+            logged_errors = True
+    mblog.logerror(learners)
+    mblog.logerror(learners == newlearners)
+    return learners
+
+
+def getlearnerinfo(learners, site):
+    """Given a list of dicts containing information on learners, add
+    the learner's username and userid to the corresponding dict. Return
+    the changed list of dicts.
+
+    Assumes that the owner of the profile created the profile.
+    """
+    for userdict in learners:
+        try:
+            learner, luid = mbapi.getpagecreator(userdict['profile'], site)
+            userdict['learner'] = learner
+            userdict['luid'] = luid
+        except Exception as e:
+            mblog.logerror('Could not get information for {}'.format(
+                userdict['profile']), exc_info=True)
+            logged_errors = True
+            continue
+    mblog.logerror(learners)
+    return learners
+
+
+def getmentors(site):
+    """Using the config data, get lists of available mentors for each
+    category, filtering out mentors who have opted out of new matches.
+
+    Return:
+        mentors     : dict of lists of mentor names, keyed by mentor
+                        category
+        genmentors  : list of mentor names for mentors who will mentor
+                        on any topic
+
+    Assumes that the owner of the profile created the profile.
+    """
+    mentors = {}
+
+    nomore = mbapi.getallcatmembers(optout, site)
+    allgenmentors = mbapi.getallcatmembers(general, site)
+    genmentors = [x for x in allgenmentors if x not in nomore and
+                  x['profile'].startswith(prefix)]
+    for category in mentorcats:
+        try:
+            catmentors = mbapi.getallcatmembers(category, site)
+            mentors[category] = [x for x in catmentors if x not in nomore and
+                                 x['profile'].startswith(prefix)]
+        except Exception as e:
+            mblog.logerror('Could not fetch list of mentors for {}'.format(
+                category), exc_info=True)
+            logged_errors = True
+            continue
+    return (mentors, genmentors)
 
 def match(catmentors, genmentors):
-    """ Given two lists, returns a random choice from the first, or if there
-    are no elements in the first returns a random choice for the second.
+    """Given two lists, return a random choice from the first, or if there
+    are no elements in the first return a random choice from the second.
     If there are no elements in either return None.
     """
     if catmentors:
@@ -73,170 +174,166 @@ def match(catmentors, genmentors):
         return None
 
 def buildgreeting(learner, mentor, skill, matchmade):
-    """Puts the string together that can be posted to a talk page or
-       Flow board to introduce a potential mentor to a learner.
+    """Create a customized greeting string to be posted to a talk page
+    or Flow board to introduce a potential mentor to a learner.
+
+    Return the greeting and a topic string for the greeting post.
     """
+    greetings = config['greetings']
     if matchmade:
-        greeting = 'Hello, [[User:%(l)s|%(l)s]]! Thank you for your interest '\
-                   'in the Co-op. [[User:%(m)s|%(m)s]] has listed "%(s)s" in '\
-                   'their mentorship profile. '\
-                   'Leave them a message on their talk page and see if you '\
-                   'want to work together! ~~~~' % {'l': learner, 'm': mentor,
-                                               's': skill}
-        topic = 'Welcome to the Co-op! Here is your match.'
+        greeting = greetings['matchgreeting'].format(mentor, skill)
+        topic = greetings['matchtopic']
     else:
-        greeting = 'Sorry, we don\'t have a match for you! ~~~~'
-        topic = 'Welcome to the Co-op!'
+        greeting = greetings['nomatchgreeting'].format(mentor)
+        topic = greetings['nomatchtopic']
     return (greeting, topic)
 
-# FIXME handle namespace errors?
-def gettalkpage(profile):
-    talkpage = 'Wikipedia talk:' + profile.lstrip('Wikipedia:')
+def getprofiletalkpage(profile):
+    """Get the talk page for a profile (a sub-page of the Co-op)."""
+    talkpage = talkprefix + profile.lstrip(prefix)
     return talkpage
 
-def postinvite(pagetitle, greeting, topic, flowenabled):
-    """ Given a page, posts a greeting. If Flow is enabled or the page
-        does not already exist, posts as a new topic on a the page's
-        Flow board; otherwise, appends the greeting to the page's existing
-        text.
+def postinvite(pagetitle, greeting, topic, flowenabled, learner):
+    """Post a greeting, with topic, to a page. If Flow is enabled or
+    the page does not already exist, post a new topic on a the page's
+    Flow board; otherwise, appends the greeting to the page's existing
+    text.
+
+    Return the result of the API POST call as a dict.
     """
-    if flowenabled:
-        # TODO: result format is in flux right now, may return metadata later
+    if flowenabled or flowenabled == None:
         result = mbapi.postflow(pagetitle, topic, greeting, site)
         return result
     else:
         profile = site.Pages[pagetitle]
-#        if flowenabled == None:
-#            mbapi.postflow(pagetitle, greeting, topic)
-#            return True
-#        else:
-        newtext = profile.text() + '\n\n' + greeting
-        result = profile.save(newtext, summary=topic)
+        addedtext = config['greetings']['noflowtemplate'].format(topic,
+            learner, greeting)
+        newpagecontents = '{0} {1}'.format(profile.text(), addedtext)
+        result = profile.save(newpagecontents, summary=topic)
         return result
-    return False
 
 def getrevid(result, isflow):
-    if isflow:
-        return result['flow']['new-topic']['committed']['topiclist']['post-revision-id']
-    else:
-        return result['newrevid']
+    """ Get the revid (for a non-Flow page) or the post-revision-id
+    (for a Flow page), given the API result for the POST request.
 
-# TODO Flow is changing
-def gettimeposted(result, isflow):
-    if isflow:
-        return datetime.datetime.now() #FIXME
+    Return a tuple (revid, post-revision-id). Either revid or
+    post-revision-id will be None.
+    """
+    if 'nochange' in result:
+        return (None, None)
+    elif isflow or isflow == None:
+        return (None, result['flow']['new-topic']['committed']['topiclist']['post-revision-id'])
     else:
-        return result['newtimestamp']
+        return (result['newrevid'], None)
+
+def gettimeposted(result, isflow):
+    """Get the time a revision was posted from the API POST result, if
+    possible.
+
+    If the page has Flow enabled, the time posted will be approximate.
+
+    If the page does not have Flow enabled, the time will match the
+    time in the wiki database for that revision.
+    """
+    if 'nochange' in result:
+        return None
+    elif isflow or isflow == None:
+        return datetime.datetime.utcnow()
+    else:
+        return parse_timestamp(result['newtimestamp'])
 
 if __name__ == '__main__':
-    # get last time run and log time-started-running
-    with open('time.log', 'r+b') as timelog:
-        prevruntimestamp = timelog.read()
-        timelog.seek(0)
-        timelog.write(datetime.datetime.strftime(datetime.datetime.now(),
-                                                 '%Y-%m-%dT%H:%M:%SZ'))
-        timelog.truncate()
+    # Get last time run, save time of run to log
+    try:
+        prevruntimestamp = timelog(run_time)
+    except Exception as e:
+        mblog.logerror(u'Could not get time of previous run', exc_info=True)
+        logged_errors = True
+        sys.exit()
 
     # Initializing site + logging in
+    login = config['login']
     try:
-        site = mwclient.Site(('https', 'test.wikipedia.org'),
-                              clients_useragent=matchbot_settings.useragent)
-        site.login(matchbot_settings.username, matchbot_settings.password)
-        mblog.logdebug('logged in as ' + matchbot_settings.username)
-    except(mwclient.LoginError):
-        mblog.logerror('LoginError: could not log in')
+        site = mwclient.Site((login['protocol'], login['site']),
+                              clients_useragent=login['useragent'])
+        site.login(login['username'], login['password'])
+    except mwclient.LoginError as e:
+        mblog.logerror(u'Login failed for {}'.format(login['username']),
+                       exc_info=True)
         logged_errors = True
-#    except(Exception):
-        mblog.logerror('Login failed') # FIXME more verbose error plz
-        logged_errors = True
-#        sys.exit()
+        sys.exit()
 
-    learners = []
-    # get the new learners for all the categories
-    # info to start: profile page id, profile name, time cat added, category
-    for category in lcats:
-        try:
-            newlearners = mbapi.newmembers(category, site, prevruntimestamp) #FIXME this should have time
-            for userdict in newlearners:
-                # add the results of that call to the list of users?
-                if userdict['profile'].startswith('Wikipedia:Co-op/'):
-                    learners.append(userdict)
-                else:
-                    pass
-        except (Exception):
-            mblog.logerror('Could not fetch newly categorized profiles in %s' % 
-                     category)
-            logged_errors = True
-
-    # add information: username, userid, talk page id
-    for userdict in learners:
-        #figure out who it is
-        learner, luid = mbapi.userid(userdict['profile'], site)
-        userdict['learner'] = learner
-        userdict['luid'] = luid
-
-    # find available mentors
-    mentors = {}
-    nomore = mbapi.getallmembers(NOMENTEES, site)
-    allgenmentors = mbapi.getallmembers(CATCHALL, site)
-    genmentors = [x for x in allgenmentors if x not in nomore and x['profile'].startswith('Wikipedia:Co-op/')]
-    for category in mcats:
-#        try:
-        catmentors = mbapi.getallmembers(category, site)
-        mentors[category] = [x for x in catmentors if x not in nomore]
-#        except(Exception):
- #           mblog.logerror('Could not fetch list of mentors for %s') % category
-
-# end up with a dict of lists of mentors, categories as keys.
+    # create a list of learners who have joined since the previous run
+    learners = getlearnerinfo(getlearners(prevruntimestamp, site), site)
+    mentors, genmentors = getmentors(site)
 
     for learner in learners:
-        # make the matches, logging info
-        mcat = category_dict[learner['category']]
-#        try:
-        matchmade = False
-        catments = mentors[mcat]
-        mentor = match(catments, genmentors) # FIXME figure out category store
-        if mentor == None:
-            raise mberrors.MatchError
-        mname, muid = mbapi.userid(mentor['profile'], site)
-        matchmade = True
-#        except (mberrors.MatchError):
-            # add '[[Category:No match found]]' to their page
-#            matchmade = False
-#        except (Exception):
-#            mblog.logerror('Matching/default match failed')
-#            logged_errors = True
-#            continue
+        try:
+            mentorcat = mentorcat_dict[learner['category']]
+            mentor = match(mentors[mentorcat], genmentors)
+        except Exception as e:
+            mblog.logerror(u'Matching failed for {}'.format(learner['learner']),
+                           exc_info=True)
+            logged_errors = True
+            continue
 
-        talkpage = gettalkpage(learner['profile'])
-        flowenabled = mbapi.flowenabled(talkpage, site)
-        basecat = learner['category'].lstrip('Category:Co-op/Requests/') #FIXME 
-            # (basecat: there's something weird with "Communication", test this)
-        greeting, topic = buildgreeting(learner['learner'], mname,
-                                        basecat, matchmade)
+        try:
+        # if there is no match, leave a message with the default mentor but do
+        # not record a true match
+            if mentor is None:
+                mname, muid = mbapi.getpagecreator(defaultmentor, site)
+                matchmade = False
+            else:
+                mname, muid = mbapi.getpagecreator(mentor['profile'], site)
+                matchmade = True
+        except Exception as e:
+            mblog.logerror(u'Could not get information for profile {}'.format(
+                mentor['profile']), exc_info=True)
+            logged_errors = True
+            continue
 
-#        try:
-        response = postinvite(talkpage, greeting, topic, flowenabled) # return? test? TODO
-        edited_pages = True
-        revid = getrevid(response, flowenabled)
-        postid = None
-        matchtime = parse_timestamp(gettimeposted(response, flowenabled))
+        try:
+            talkpage = getprofiletalkpage(learner['profile'])
+            mblog.logerror(u'{} goes to {}'.format(learner['profile'], talkpage))
 
-#        except (Exception):
-#            mblog.logerror('Could not post match on page')
-#            logged_errors = True
-#            break
+            flowenabled = mbapi.flowenabled(talkpage, site)
+            skill = skills_dict[learner['category']]
+            greeting, topic = buildgreeting(learner['learner'], mname,
+                                            skill, matchmade)
+        except Exception as e:
+            mblog.logerror(u'Could not create a greeting for {}'.format(
+                learner['learner']), exc_info=True)
+            logged_errors = True
+            continue
 
-#        try:
-        cataddtime = parse_timestamp(learner['cattime'])
-        mblog.logmatch(luid=luid, lprofile=learner['profile'], muid=muid,
-                           category=basecat, cataddtime=cataddtime,
+        try:
+            response = postinvite(talkpage, greeting, topic, flowenabled,
+				  learner['learner'])
+            edited_pages = True
+            mblog.logerror(u'{}: {}'.format(talkpage,response))
+        except Exception as e:
+            mblog.logerror(u'Could not post match on {}\'s page'.format(
+                learner['learner']), exc_info=True)
+            logged_errors = True
+            continue
+
+        try:
+            revid, postid = getrevid(response, flowenabled)
+            matchtime = gettimeposted(response, flowenabled)
+            cataddtime = parse_timestamp(learner['cattime'])
+            mblog.logmatch(luid=learner['luid'], lprofileid=learner['profileid'],
+                           muid=muid, category=skill, cataddtime=cataddtime,
                            matchtime=matchtime, matchmade=matchmade,
-                           revid=revid, postid=postid, runid=run_id)
-        wrote_db = True
-#        except (Exception):
-#            mblog.logerror('Could not write to DB')
-#            logged_errors = True
-#            break
+                           revid=revid, postid=postid, run_time=run_time)
+            wrote_db = True
+        except Exception as e:
+            mblog.logerror(u'Could not write to DB for {}'.format(
+                learner['learner']), exc_info=True)
+            logged_errors = True
+            continue
 
-    mblog.logrun(run_id, edited_pages, wrote_db, logged_errors)
+    try:
+        mblog.logrun(run_time, edited_pages, wrote_db, logged_errors)
+    except Exception as e:
+        mblog.logerror(u'Could not log run at {}'.format(run_time),
+            exc_info=True)
