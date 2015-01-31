@@ -19,7 +19,7 @@ $ git clone https://github.com/fhocutt/matchbot.git
 ```
 
 Update `config.json` with your bot's login information and database
-credentials, and make any other necessary changes (see 
+credentials, and make any other necessary changes (see
 [Configuring MatchBot](#Configuring MatchBot) for more information).
 
 To create a database with the expected schema:
@@ -43,13 +43,29 @@ MatchBot will not run if the directory specified in `<path-to-config>` does not
 contain `config.json`, `time.log`, and a `logs/` folder.
 
 ### Running on Tool Labs
+MatchBot is designed to be run on [Tool Labs](https://wikitech.wikimedia.org/wiki/Help:Tool_Labs) with an associated MySQL database.
 
-* set up your bot's account on the wiki you're running on
-* set up a database account on Labs
-* clone the repo
-* add your information to `config.json`
-* set up a virtualenv with all things
-* set it up to run on cron
+Steps to get started:
+* Make an account for your bot on the wiki you're running it on.
+* Set up an account with database access on Tool Labs.
+* Clone this repository.
+* Edit `config.json` to include your bot's information (wiki and database logins).
+* Set up a virtual environment with all necessary dependencies. Set up and activate your virtualenv with
+```bash
+path/to/virtualenv$ virtualenv .
+path/to/virtualenv$ source bin/activate
+```
+and then use `pip` to install the needed dependencies:
+```bash
+$ pip install mysql-python
+$ pip install sqlalchemy
+$ pip install git+git://github.com/mwclient/mwclient.git
+```
+* If you want to set the bot up to run every five minutes, add the following line to your crontab in your Labs project account:
+```
+*/5 * * * * jsub /path/to/virtualenv/bin/python /path/to/matchbot/matchbot.py /path/to/matchbot/
+```
+This will use the `jsub` job scheduler on Tool Labs to run the bot using the virtualenv that you have set up previously.
 
 ## Dependencies
 See `requirements.txt` for dependencies.

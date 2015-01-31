@@ -26,7 +26,9 @@
     },
     "dbinfo": {
         "dbname": "DATABASENAME",
-        "host": "DATABASEHOST"
+        "host": "DATABASEHOST",
+        "username": "DATABASEUSERNAME",
+        "password": "DATABASEPASSWORD"
     },
     "defaultmentorprofile": "Wikipedia:Co-op/DEFAULT",
     "greetings": {
