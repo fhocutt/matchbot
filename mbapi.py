@@ -24,9 +24,9 @@ def flowenabled(title, site):
         False   if Flow is not enabled on the page
         None    if the page does not exist
     """
-    query = site.api(action = 'query',
-                     titles = title,
-                     prop = 'flowinfo')
+    query = site.api(action='query',
+                     titles=title,
+                     prop='flowinfo')
     pagedict = query['query']['pages']
     for page in pagedict:
         if page == '-1':
@@ -46,13 +46,13 @@ def getpagecreator(title, site):
         user    :   a string containing the page creator's user name
         userid  :   a string containing the page creator's userid
     """
-    query = site.api(action = 'query',
-                     prop = 'revisions',
-                     rvprop = 'user|userid',
-                     rvdir = 'newer',
-                     titles = title,
-                     rvlimit = 1,
-                     indexpageids = "")
+    query = site.api(action='query',
+                     prop='revisions',
+                     rvprop='user|userid',
+                     rvdir='newer',
+                     titles=title,
+                     rvlimit=1,
+                     indexpageids="")
     pagedict = query['query']['pages']
     for page in pagedict:
         user = pagedict[page]['revisions'][0]['user']
@@ -93,7 +93,8 @@ def getnewmembers(categoryname, site, timelastchecked):
             for arg in result['continue']:
                 newkwargs[arg] = result['continue'][arg]
             result = site.api(**newkwargs)
-            newcatmembers = makelearnerlist(result, categoryname, newcatmembers)
+            newcatmembers = makelearnerlist(result, categoryname,
+                                            newcatmembers)
         else:
             break
     return newcatmembers
@@ -114,7 +115,7 @@ def makelearnerlist(result, categoryname, catusers=None):
         a list of dicts containing information on the category members
         in the provided query.
     """
-    if catusers == None:
+    if catusers is None:
         catusers = []
     else:
         pass
@@ -146,8 +147,7 @@ def getallcatmembers(category, site):
               'list': 'categorymembers',
               'cmtitle': category,
               'cmprop': 'ids|title',
-              'cmlimit': 'max',
-             }
+              'cmlimit': 'max'}
     result = site.api(**kwargs)
     catmembers = addmentorinfo(result)
 
@@ -177,7 +177,7 @@ def addmentorinfo(result, catmembers=None):
         a list of dicts containing information on the category members
         in the provided query.
     """
-    if catmembers == None:
+    if catmembers is None:
         catmembers = []
     else:
         pass
@@ -186,6 +186,7 @@ def addmentorinfo(result, catmembers=None):
         userdict = {'profileid': page['pageid'], 'profile': page['title']}
         catmembers.append(userdict)
     return catmembers
+
 
 def postflow(page, topic, message, site):
     """Post a new topic to a Flow board.

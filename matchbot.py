@@ -63,6 +63,7 @@ def parse_timestamp(t):
     else:
         return datetime.datetime.strptime(t, '%Y-%m-%dT%H:%M:%SZ')
 
+
 def timelog(run_time):
     """Get the timestamp from the last run, then log the current time
     (UTC).
@@ -75,6 +76,7 @@ def timelog(run_time):
                                                  '%Y-%m-%dT%H:%M:%SZ'))
         timelog.truncate()
     return prevruntimestamp
+
 
 def getlearners(prevruntimestamp, site):
     """Get a list of learners who have created profiles since the last
@@ -159,6 +161,7 @@ def getmentors(site):
             continue
     return (mentors, genmentors)
 
+
 def match(catmentors, genmentors):
     """Given two lists, return a random choice from the first, or if there
     are no elements in the first return a random choice from the second.
@@ -172,6 +175,7 @@ def match(catmentors, genmentors):
         return mentor
     else:
         return None
+
 
 def buildgreeting(learner, mentor, skill, matchmade):
     """Create a customized greeting string to be posted to a talk page
@@ -188,10 +192,12 @@ def buildgreeting(learner, mentor, skill, matchmade):
         topic = greetings['nomatchtopic']
     return (greeting, topic)
 
+
 def getprofiletalkpage(profile):
     """Get the talk page for a profile (a sub-page of the Co-op)."""
     talkpage = talkprefix + profile.lstrip(prefix)
     return talkpage
+
 
 def postinvite(pagetitle, greeting, topic, flowenabled, learner):
     """Post a greeting, with topic, to a page. If Flow is enabled or
@@ -201,16 +207,17 @@ def postinvite(pagetitle, greeting, topic, flowenabled, learner):
 
     Return the result of the API POST call as a dict.
     """
-    if flowenabled or flowenabled == None:
+    if flowenabled or flowenabled is None:
         result = mbapi.postflow(pagetitle, topic, greeting, site)
         return result
     else:
         profile = site.Pages[pagetitle]
-        addedtext = config['greetings']['noflowtemplate'].format(topic,
-            learner, greeting)
+        addedtext = config['greetings']['noflowtemplate'].format(
+            topic, learner, greeting)
         newpagecontents = '{0} {1}'.format(profile.text(), addedtext)
         result = profile.save(newpagecontents, summary=topic)
         return result
+
 
 def getrevid(result, isflow):
     """ Get the revid (for a non-Flow page) or the post-revision-id
@@ -221,10 +228,12 @@ def getrevid(result, isflow):
     """
     if 'nochange' in result:
         return (None, None)
-    elif isflow or isflow == None:
-        return (None, result['flow']['new-topic']['committed']['topiclist']['post-revision-id'])
+    elif isflow or isflow is None:
+        return (None, result['flow']['new-topic']['committed'][
+                'topiclist']['post-revision-id'])
     else:
         return (result['newrevid'], None)
+
 
 def gettimeposted(result, isflow):
     """Get the time a revision was posted from the API POST result, if
@@ -237,10 +246,11 @@ def gettimeposted(result, isflow):
     """
     if 'nochange' in result:
         return None
-    elif isflow or isflow == None:
+    elif isflow or isflow is None:
         return datetime.datetime.utcnow()
     else:
         return parse_timestamp(result['newtimestamp'])
+
 
 if __name__ == '__main__':
     # Get last time run, save time of run to log
@@ -255,7 +265,7 @@ if __name__ == '__main__':
     login = config['login']
     try:
         site = mwclient.Site((login['protocol'], login['site']),
-                              clients_useragent=login['useragent'])
+                             clients_useragent=login['useragent'])
         site.login(login['username'], login['password'])
     except mwclient.LoginError as e:
         mblog.logerror(u'Login failed for {}'.format(login['username']),
@@ -272,14 +282,14 @@ if __name__ == '__main__':
             mentorcat = mentorcat_dict[learner['category']]
             mentor = match(mentors[mentorcat], genmentors)
         except Exception as e:
-            mblog.logerror(u'Matching failed for {}'.format(learner['learner']),
-                           exc_info=True)
+            mblog.logerror(u'Matching failed for {}'.format(
+                learner['learner']), exc_info=True)
             logged_errors = True
             continue
 
         try:
-        # if there is no match, leave a message with the default mentor but do
-        # not record a true match
+            # if there is no match, leave a message with the default mentor
+            # but do not record a true match
             if mentor is None:
                 mname, muid = mbapi.getpagecreator(defaultmentor, site)
                 matchmade = False
@@ -294,7 +304,8 @@ if __name__ == '__main__':
 
         try:
             talkpage = getprofiletalkpage(learner['profile'])
-            mblog.logerror(u'{} goes to {}'.format(learner['profile'], talkpage))
+            mblog.logerror(u'{} goes to {}'.format(learner['profile'],
+                           talkpage))
 
             flowenabled = mbapi.flowenabled(talkpage, site)
             skill = skills_dict[learner['category']]
@@ -308,9 +319,9 @@ if __name__ == '__main__':
 
         try:
             response = postinvite(talkpage, greeting, topic, flowenabled,
-				  learner['learner'])
+                                  learner['learner'])
             edited_pages = True
-            mblog.logerror(u'{}: {}'.format(talkpage,response))
+            mblog.logerror(u'{}: {}'.format(talkpage, response))
         except Exception as e:
             mblog.logerror(u'Could not post match on {}\'s page'.format(
                 learner['learner']), exc_info=True)
@@ -321,7 +332,8 @@ if __name__ == '__main__':
             revid, postid = getrevid(response, flowenabled)
             matchtime = gettimeposted(response, flowenabled)
             cataddtime = parse_timestamp(learner['cattime'])
-            mblog.logmatch(luid=learner['luid'], lprofileid=learner['profileid'],
+            mblog.logmatch(luid=learner['luid'],
+                           lprofileid=learner['profileid'],
                            muid=muid, category=skill, cataddtime=cataddtime,
                            matchtime=matchtime, matchmade=matchmade,
                            revid=revid, postid=postid, run_time=run_time)
@@ -336,4 +348,4 @@ if __name__ == '__main__':
         mblog.logrun(run_time, edited_pages, wrote_db, logged_errors)
     except Exception as e:
         mblog.logerror(u'Could not log run at {}'.format(run_time),
-            exc_info=True)
+                       exc_info=True)

@@ -22,6 +22,7 @@ from load_config import config, filepath
 # possibly hacky
 logpath = os.path.join(filepath, 'log')
 
+
 def logrun(run_time, edited_pages, wrote_db, logged_errors):
     """Log information for each run to external log files.
 
@@ -36,8 +37,8 @@ def logrun(run_time, edited_pages, wrote_db, logged_errors):
 
     Rotating logs will each be used for 30 d. Two backup logs are kept.
     """
-    message = '{0}\tEdited: {1}\tWrote DB: {2}\tErrors: {3}'.format(run_time,
-                  edited_pages, wrote_db, logged_errors)
+    message = '{0}\tEdited: {1}\tWrote DB: {2}\tErrors: {3}'.format(
+        run_time, edited_pages, wrote_db, logged_errors)
     logger = logging.getLogger(__name__)
     logger.setLevel(logging.INFO)
     formatter = logging.Formatter('%(levelname)s\t%(message)s')
@@ -64,7 +65,7 @@ def logerror(message, exc_info=False):
 
 
 def logmatch(luid, lprofileid, category, muid, matchtime,
-                  cataddtime, matchmade, run_time, revid=None, postid=None):
+             cataddtime, matchmade, run_time, revid=None, postid=None):
     """Log information about the match to a relational database.
 
     Parameters:
@@ -93,9 +94,10 @@ def logmatch(luid, lprofileid, category, muid, matchtime,
     conn = engine.connect()
     conn.execute(ins, {'luid': luid, 'lprofileid': lprofileid,
                        'category': category, 'muid': muid,
-                       'matchtime':matchtime, 'cataddtime': cataddtime,
+                       'matchtime': matchtime, 'cataddtime': cataddtime,
                        'revid': revid, 'postid': postid,
                        'matchmade': matchmade, 'run_time': run_time})
+
 
 def makeconnstr():
     """Return a string with MySQL DB connecting information."""
@@ -103,5 +105,6 @@ def makeconnstr():
     password = config['dbinfo']['password']
     host = config['dbinfo']['host']
     dbname = config['dbinfo']['dbname']
-    conn_str = 'mysql://{}:{}@{}/{}?charset=utf8&use_unicode=0'.format(username, password, host, dbname)
+    conn_str = 'mysql://{}:{}@{}/{}?charset=utf8&use_unicode=0'.format(
+        username, password, host, dbname)
     return conn_str
