@@ -2,6 +2,7 @@
 grantsbot_settings.*
 matchbot_settings.*
 hostbot_settings.*
+*config.json
 # compiled modules
 *.pyc
 # subdirectories
