@@ -9,7 +9,7 @@ data/
 logs/
 modules/
 old_scripts/
-test*
+
 # crud
 *.DS_Store
 *.InterarchyMirrorCacheData

@@ -81,6 +81,7 @@ $ pip install git+git://github.com/mwclient/mwclient.git
 * SQLAlchemy depends on MySQLdb. On Tool Labs, if you are having a problem
   involving MySQLdb, try running `pip install mysql-python` from inside your
   virtualenv.
+* Python3 is not supported.
 
 
 ## How matches are made

@@ -25,13 +25,14 @@ MatchBot logs information when a run is complete, when a match is made,
 and when an error occurs. Logs are stored in <path-to-config-dir>/log .
 """
 
-import random
+import argparse
 import datetime
-import sys
 import os
+import random
+import sys
 
-import sqlalchemy
 import mwclient
+import sqlalchemy
 
 import mbapi
 import mblog
@@ -62,6 +63,12 @@ def parse_timestamp(t):
         return None
     else:
         return datetime.datetime.strptime(t, '%Y-%m-%dT%H:%M:%SZ')
+
+
+def getprofiletalkpage(profile):
+    """Get the talk page for a profile (a sub-page of the Co-op)."""
+    talkpage = talkprefix + profile.lstrip(prefix)
+    return talkpage
 
 
 def timelog(run_time):
@@ -193,12 +200,6 @@ def buildgreeting(learner, mentor, skill, matchmade):
     return (greeting, topic)
 
 
-def getprofiletalkpage(profile):
-    """Get the talk page for a profile (a sub-page of the Co-op)."""
-    talkpage = talkprefix + profile.lstrip(prefix)
-    return talkpage
-
-
 def postinvite(pagetitle, greeting, topic, flowenabled, learner):
     """Post a greeting, with topic, to a page. If Flow is enabled or
     the page does not already exist, post a new topic on a the page's
@@ -252,8 +253,7 @@ def gettimeposted(result, isflow):
         return parse_timestamp(result['newtimestamp'])
 
 
-if __name__ == '__main__':
-    # Get last time run, save time of run to log
+def main():
     try:
         prevruntimestamp = timelog(run_time)
     except Exception as e:
@@ -306,7 +306,6 @@ if __name__ == '__main__':
             talkpage = getprofiletalkpage(learner['profile'])
             mblog.logerror(u'{} goes to {}'.format(learner['profile'],
                            talkpage))
-
             flowenabled = mbapi.flowenabled(talkpage, site)
             skill = skills_dict[learner['category']]
             greeting, topic = buildgreeting(learner['learner'], mname,
@@ -349,3 +348,12 @@ if __name__ == '__main__':
     except Exception as e:
         mblog.logerror(u'Could not log run at {}'.format(run_time),
                        exc_info=True)
+
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description='Generate data for the mobile dashboard.')
+    parser.add_argument('folder', help='folder with config.yaml and *.sql files')
+    parser.set_defaults(folder='.')
+    args = parser.parse_args()
+# something about load_config here; note, I changed it
+    main()
