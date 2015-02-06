@@ -57,6 +57,82 @@ wrote_db = False
 logged_errors = False
 
 
+def main():
+    try:
+        prevruntimestamp = timelog(run_time)
+    except Exception as e:
+        mblog.logerror(u'Could not get time of previous run', exc_info=True)
+        logged_errors = True
+        sys.exit()
+
+    # Initializing site + logging in
+    login = config['login']
+    try:
+        site = mwclient.Site((login['protocol'], login['site']),
+                             clients_useragent=login['useragent'])
+        site.login(login['username'], login['password'])
+    except mwclient.LoginError as e:
+        mblog.logerror(u'Login failed for {}'.format(login['username']),
+                       exc_info=True)
+        logged_errors = True
+        sys.exit()
+
+    # create a list of learners who have joined since the previous run
+    learners = getlearnerinfo(getlearners(prevruntimestamp, site), site)
+    mentors, genmentors = getmentors(site)
+
+    for learner in learners:
+        try:
+            mentorcat = mentorcat_dict[learner['category']]
+            mentor = match(mentors[mentorcat], genmentors)
+        except Exception as e:
+            mblog.logerror(u'Matching failed for {}'.format(
+                learner['learner']), exc_info=True)
+            logged_errors = True
+            continue
+
+        try:
+            mname, muid, matchmade = get_match_info(mentor)
+        except Exception as e:
+            mblog.logerror(u'Could not get information for profile {}'.format(
+                mentor['profile']), exc_info=True)
+            logged_errors = True
+            continue
+
+        try:
+            response = postinvite(get_invite_info(learner, mname, skill,
+                                                  matchmade, site))
+            edited_pages = True
+        except Exception as e:
+            mblog.logerror(u'Could not post match on {}\'s page'.format(
+                learner['learner']), exc_info=True)
+            logged_errors = True
+            continue
+
+        try:
+            revid, postid = getrevid(response, flowenabled)
+            matchtime = gettimeposted(response, flowenabled)
+            cataddtime = parse_timestamp(learner['cattime'])
+
+            mblog.logmatch(luid=learner['luid'],
+                           lprofileid=learner['profileid'],
+                           muid=muid, category=skill, cataddtime=cataddtime,
+                           matchtime=matchtime, matchmade=matchmade,
+                           revid=revid, postid=postid, run_time=run_time)
+            wrote_db = True
+        except Exception as e:
+            mblog.logerror(u'Could not write to DB for {}'.format(
+                learner['learner']), exc_info=True)
+            logged_errors = True
+            continue
+
+    try:
+        mblog.logrun(run_time, edited_pages, wrote_db, logged_errors)
+    except Exception as e:
+        mblog.logerror(u'Could not log run at {}'.format(run_time),
+                       exc_info=True)
+
+
 def parse_timestamp(t):
     """Parse MediaWiki-style timestamps and return a datetime."""
     if t == '0000-00-00T00:00:00Z':
@@ -183,8 +259,19 @@ def match(catmentors, genmentors):
     else:
         return None
 
+def get_match_info(mentor):
+    # if there is no match, leave a message with the default mentor
+    # but do not record a true match
+    if mentor is None:
+        mname, muid = mbapi.getpagecreator(defaultmentor, site)
+        matchmade = False
+    else:
+        mname, muid = mbapi.getpagecreator(mentor['profile'], site)
+        matchmade = True
+    return (mname, muid, matchmade)
 
-def buildgreeting(learner, mentor, skill, matchmade):
+
+def buildgreeting(learner, mname, skill, matchmade):
     """Create a customized greeting string to be posted to a talk page
     or Flow board to introduce a potential mentor to a learner.
 
@@ -192,15 +279,25 @@ def buildgreeting(learner, mentor, skill, matchmade):
     """
     greetings = config['greetings']
     if matchmade:
-        greeting = greetings['matchgreeting'].format(mentor, skill)
+        greeting = greetings['matchgreeting'].format(mname, skill)
         topic = greetings['matchtopic']
     else:
-        greeting = greetings['nomatchgreeting'].format(mentor)
+        greeting = greetings['nomatchgreeting'].format(mname)
         topic = greetings['nomatchtopic']
     return (greeting, topic)
 
 
-def postinvite(pagetitle, greeting, topic, flowenabled, learner, site):
+def get_invite_info(learner, mname, skill, matchmade, site):
+    """ Docstring placeholder FIXME """
+    talkpage = getprofiletalkpage(learner['profile'])
+    flowenabled = mbapi.flowenabled(talkpage, site)
+    skill = skills_dict[learner['category']]
+    greeting, topic = buildgreeting(learner['learner'], mname,
+                                    skill, matchmade)
+    return (talkpage, greeting, topic, flowenabled, lname, site)
+
+
+def postinvite(pagetitle, greeting, topic, flowenabled, lname, site):
     """Post a greeting, with topic, to a page. If Flow is enabled or
     the page does not already exist, post a new topic on a the page's
     Flow board; otherwise, appends the greeting to the page's existing
@@ -214,7 +311,7 @@ def postinvite(pagetitle, greeting, topic, flowenabled, learner, site):
     else:
         profile = site.Pages[pagetitle]
         addedtext = config['greetings']['noflowtemplate'].format(
-            topic, learner, greeting)
+            topic, lname, greeting)
         newpagecontents = '{0} {1}'.format(profile.text(), addedtext)
         result = profile.save(newpagecontents, summary=topic)
         return result
@@ -253,107 +350,10 @@ def gettimeposted(result, isflow):
         return parse_timestamp(result['newtimestamp'])
 
 
-def main():
-    try:
-        prevruntimestamp = timelog(run_time)
-    except Exception as e:
-        mblog.logerror(u'Could not get time of previous run', exc_info=True)
-        logged_errors = True
-        sys.exit()
-
-    # Initializing site + logging in
-    login = config['login']
-    try:
-        site = mwclient.Site((login['protocol'], login['site']),
-                             clients_useragent=login['useragent'])
-        site.login(login['username'], login['password'])
-    except mwclient.LoginError as e:
-        mblog.logerror(u'Login failed for {}'.format(login['username']),
-                       exc_info=True)
-        logged_errors = True
-        sys.exit()
-
-    # create a list of learners who have joined since the previous run
-    learners = getlearnerinfo(getlearners(prevruntimestamp, site), site)
-    mentors, genmentors = getmentors(site)
-
-    for learner in learners:
-        try:
-            mentorcat = mentorcat_dict[learner['category']]
-            mentor = match(mentors[mentorcat], genmentors)
-        except Exception as e:
-            mblog.logerror(u'Matching failed for {}'.format(
-                learner['learner']), exc_info=True)
-            logged_errors = True
-            continue
-
-        try:
-            # if there is no match, leave a message with the default mentor
-            # but do not record a true match
-            if mentor is None:
-                mname, muid = mbapi.getpagecreator(defaultmentor, site)
-                matchmade = False
-            else:
-                mname, muid = mbapi.getpagecreator(mentor['profile'], site)
-                matchmade = True
-        except Exception as e:
-            mblog.logerror(u'Could not get information for profile {}'.format(
-                mentor['profile']), exc_info=True)
-            logged_errors = True
-            continue
-
-        try:
-            talkpage = getprofiletalkpage(learner['profile'])
-            mblog.logerror(u'{} goes to {}'.format(learner['profile'],
-                           talkpage))
-            flowenabled = mbapi.flowenabled(talkpage, site)
-            skill = skills_dict[learner['category']]
-            greeting, topic = buildgreeting(learner['learner'], mname,
-                                            skill, matchmade)
-        except Exception as e:
-            mblog.logerror(u'Could not create a greeting for {}'.format(
-                learner['learner']), exc_info=True)
-            logged_errors = True
-            continue
-
-        try:
-            response = postinvite(talkpage, greeting, topic, flowenabled,
-                                  learner['learner'], site) # add site
-            edited_pages = True
-            mblog.logerror(u'{}: {}'.format(talkpage, response))
-        except Exception as e:
-            mblog.logerror(u'Could not post match on {}\'s page'.format(
-                learner['learner']), exc_info=True)
-            logged_errors = True
-            continue
-
-        try:
-            revid, postid = getrevid(response, flowenabled)
-            matchtime = gettimeposted(response, flowenabled)
-            cataddtime = parse_timestamp(learner['cattime'])
-            mblog.logmatch(luid=learner['luid'],
-                           lprofileid=learner['profileid'],
-                           muid=muid, category=skill, cataddtime=cataddtime,
-                           matchtime=matchtime, matchmade=matchmade,
-                           revid=revid, postid=postid, run_time=run_time)
-            wrote_db = True
-        except Exception as e:
-            mblog.logerror(u'Could not write to DB for {}'.format(
-                learner['learner']), exc_info=True)
-            logged_errors = True
-            continue
-
-    try:
-        mblog.logrun(run_time, edited_pages, wrote_db, logged_errors)
-    except Exception as e:
-        mblog.logerror(u'Could not log run at {}'.format(run_time),
-                       exc_info=True)
-
-
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Generate data for the mobile dashboard.')
-    parser.add_argument('folder', help='folder with config.yaml and *.sql files')
-    parser.set_defaults(folder='.')
-    args = parser.parse_args()
+#    parser = argparse.ArgumentParser(description='Generate data for the mobile dashboard.')
+#    parser.add_argument('folder', help='folder with config.yaml and *.sql files')
+#    parser.set_defaults(folder='./matchbot')
+#    args = parser.parse_args()
     # something about load_config here; FIXME
     main()
