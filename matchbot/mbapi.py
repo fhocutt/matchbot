@@ -100,6 +100,7 @@ def getnewmembers(categoryname, site, timelastchecked):
     return newcatmembers
 
 
+
 def makelearnerlist(result, categoryname, catusers=None):
     """Create a list of dicts containing information on each user from
     the getnewmembers API result.

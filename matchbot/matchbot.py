@@ -200,7 +200,7 @@ def buildgreeting(learner, mentor, skill, matchmade):
     return (greeting, topic)
 
 
-def postinvite(pagetitle, greeting, topic, flowenabled, learner):
+def postinvite(pagetitle, greeting, topic, flowenabled, learner, site):
     """Post a greeting, with topic, to a page. If Flow is enabled or
     the page does not already exist, post a new topic on a the page's
     Flow board; otherwise, appends the greeting to the page's existing
@@ -228,7 +228,7 @@ def getrevid(result, isflow):
     post-revision-id will be None.
     """
     if 'nochange' in result:
-        return (None, None)
+        raise mwclient.APIError  #FIXME (maybe unneeded?)
     elif isflow or isflow is None:
         return (None, result['flow']['new-topic']['committed'][
                 'topiclist']['post-revision-id'])
@@ -246,7 +246,7 @@ def gettimeposted(result, isflow):
     time in the wiki database for that revision.
     """
     if 'nochange' in result:
-        return None
+        raise mwclient.APIError #FIXME (maybe unneeded?)
     elif isflow or isflow is None:
         return datetime.datetime.utcnow()
     else:
@@ -318,7 +318,7 @@ def main():
 
         try:
             response = postinvite(talkpage, greeting, topic, flowenabled,
-                                  learner['learner'])
+                                  learner['learner'], site) # add site
             edited_pages = True
             mblog.logerror(u'{}: {}'.format(talkpage, response))
         except Exception as e:
@@ -355,5 +355,5 @@ if __name__ == '__main__':
     parser.add_argument('folder', help='folder with config.yaml and *.sql files')
     parser.set_defaults(folder='.')
     args = parser.parse_args()
-# something about load_config here; note, I changed it
+    # something about load_config here; FIXME
     main()
