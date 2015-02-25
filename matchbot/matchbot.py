@@ -50,14 +50,14 @@ defaultmentor = config['defaultmentorprofile']
 mentorcat_dict = {k: v for (k, v) in zip(requestcats, mentorcats)}
 skills_dict = {k: v for (k, v) in zip(requestcats, skillslist)}
 
-# Variables to log
-run_time = datetime.datetime.utcnow()
-edited_pages = False
-wrote_db = False
-logged_errors = False
-
 
 def main():
+    # Variables to log
+    run_time = datetime.datetime.utcnow()
+    edited_pages = False
+    wrote_db = False
+    logged_errors = False
+
     try:
         prevruntimestamp = timelog(run_time)
     except Exception as e:
@@ -92,7 +92,8 @@ def main():
             continue
 
         try:
-            mname, muid, matchmade = get_match_info(mentor)
+            mname, muid, matchmade = get_match_info(mentor, site)
+            print((mname, muid, matchmade))
         except Exception as e:
             mblog.logerror(u'Could not get information for profile {}'.format(
                 mentor['profile']), exc_info=True)
@@ -100,8 +101,9 @@ def main():
             continue
 
         try:
-            response = postinvite(get_invite_info(learner, mname, skill,
-                                                  matchmade, site))
+            invite_info = get_invite_info(learner, mname,
+                                                  matchmade, site)
+            response = postinvite(invite_info)
             edited_pages = True
         except Exception as e:
             mblog.logerror(u'Could not post match on {}\'s page'.format(
@@ -110,13 +112,15 @@ def main():
             continue
 
         try:
+            flowenabled = invite_info[3]
             revid, postid = getrevid(response, flowenabled)
             matchtime = gettimeposted(response, flowenabled)
             cataddtime = parse_timestamp(learner['cattime'])
 
             mblog.logmatch(luid=learner['luid'],
                            lprofileid=learner['profileid'],
-                           muid=muid, category=skill, cataddtime=cataddtime,
+                           muid=muid, category=learner['category'],
+                           cataddtime=cataddtime,
                            matchtime=matchtime, matchmade=matchmade,
                            revid=revid, postid=postid, run_time=run_time)
             wrote_db = True
@@ -259,7 +263,7 @@ def match(catmentors, genmentors):
     else:
         return None
 
-def get_match_info(mentor):
+def get_match_info(mentor, site):
     # if there is no match, leave a message with the default mentor
     # but do not record a true match
     if mentor is None:
@@ -287,17 +291,18 @@ def buildgreeting(learner, mname, skill, matchmade):
     return (greeting, topic)
 
 
-def get_invite_info(learner, mname, skill, matchmade, site):
+def get_invite_info(learner, mname, matchmade, site):
     """ Docstring placeholder FIXME """
     talkpage = getprofiletalkpage(learner['profile'])
     flowenabled = mbapi.flowenabled(talkpage, site)
     skill = skills_dict[learner['category']]
     greeting, topic = buildgreeting(learner['learner'], mname,
                                     skill, matchmade)
+    lname = learner['learner']
     return (talkpage, greeting, topic, flowenabled, lname, site)
 
 
-def postinvite(pagetitle, greeting, topic, flowenabled, lname, site):
+def postinvite(invite_info):
     """Post a greeting, with topic, to a page. If Flow is enabled or
     the page does not already exist, post a new topic on a the page's
     Flow board; otherwise, appends the greeting to the page's existing
@@ -305,6 +310,7 @@ def postinvite(pagetitle, greeting, topic, flowenabled, lname, site):
 
     Return the result of the API POST call as a dict.
     """
+    pagetitle, greeting, topic, flowenabled, lname, site = invite_info
     if flowenabled or flowenabled is None:
         result = mbapi.postflow(pagetitle, topic, greeting, site)
         return result
