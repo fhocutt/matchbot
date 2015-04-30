@@ -14,14 +14,16 @@
             "Category:Co-op/Requests/Communication",
             "Category:Co-op/Requests/Writing",
             "Category:Co-op/Requests/Other",
-            "Category:Co-op/Requests/Technical editing"
+            "Category:Co-op/Requests/Technical editing",
+            "Category:Co-op/Requests/Images and media"
         ],
         "mentorcategories": [
             "Category:Co-op mentors with best practice skills",
             "Category:Co-op mentors with communication skills",
             "Category:Co-op mentors with writing skills",
             "Category:Co-op mentors with general editing skills",
-            "Category:Co-op mentors with technical editing skills"
+            "Category:Co-op mentors with technical editing skills",
+            "Category:Co-op mentors with multimedia skills"
         ]
     },
     "dbinfo": {
